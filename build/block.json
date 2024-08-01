@@ -1,0 +1,63 @@
+{
+  "$schema": "https://schemas.wp.org/trunk/block.json",
+  "apiVersion": 2,
+  "name": "hubspot/form",
+  "version": "0.1.0",
+  "title": "Hubspot Form",
+  "category": "embed",
+  "icon": "clipboard",
+  "attributes": {
+    "portalId": {
+      "type": "string",
+      "default": ""
+    },
+    "region": {
+      "type": "string",
+      "enum": [
+        "eu1",
+        "na1"
+      ],
+      "default": "eu1"
+    },
+    "formId": {
+      "type": "string",
+      "default": ""
+    },
+    "redirectUrl": {
+      "type": "string"
+    },
+    "submitText": {
+      "type": "string"
+    },
+    "goToWebinarWebinarKey": {
+      "type": "string"
+    },
+    "sfdcCampaignId": {
+      "type": "string"
+    },
+    "inlineMessage": {
+      "type": "string"
+    },
+    "gtmEventName": {
+      "type": "string"
+    }
+  },
+  "description": "Hubspot form embed block with configuration options",
+  "supports": {
+    "html": false,
+    "align": true,
+    "alignWide": true,
+    "customClassName": true,
+    "spacing": {
+      "margin": true,
+      "padding": true
+    },
+    "anchor": true
+  },
+  "textdomain": "hubspot-form-block",
+  "editorScript": "file:./index.js",
+  "editorStyle": "file:./index.css",
+  "style": "file:./style-index.css",
+  "viewScript": "hs-forms",
+  "render": "file:./render.php"
+}
