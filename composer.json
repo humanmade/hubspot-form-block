@@ -1,5 +1,5 @@
 {
-    "name": "humanmade/hubspot-form",
+    "name": "humanmade/hubspot-form-block",
     "description": "Hubspot Form Embed Block for WordPress",
     "type": "wordpress-plugin",
     "require": {
