@@ -1,4 +1,6 @@
 <?php
+global $hubspot_form_block_instance_ids;
+
 $portal_id = $attributes['portalId'] ?: get_option( 'hubspot_embed_portal_id' );
 $form_id = $attributes['formId'] ?: '';
 
@@ -10,11 +12,11 @@ if ( empty( $portal_id ) || empty( $form_id ) ) {
 $attributes = array_filter( $attributes );
 
 // Track the instance ID of each form to ensure no collisions.
-static $instance_ids = [];
-$instance_ids[ $attributes['formId'] ] = isset( $instance_ids[ $attributes['formId'] ] )
-	? $instance_ids[ $attributes['formId'] ] + 1
+$hubspot_form_block_instance_ids = $hubspot_form_block_instance_ids ?? [];
+$hubspot_form_block_instance_ids[ $attributes['formId'] ] = isset( $hubspot_form_block_instance_ids[ $attributes['formId'] ] )
+	? $hubspot_form_block_instance_ids[ $attributes['formId'] ] + 1
 	: 1;
-$instance_id = $instance_ids[ $attributes['formId'] ];
+$instance_id = $hubspot_form_block_instance_ids[ $attributes['formId'] ];
 
 // Get a unique identifier for this form instance.
 $target = sprintf(
