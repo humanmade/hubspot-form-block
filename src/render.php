@@ -55,7 +55,7 @@ $gtm_event_name = empty( $attributes['gtmEventName'] ) ? 'hubspot_form_submit' :
 			hbspt.forms.create( Object.assign( {
 				onFormReady: function ( $form ) {
 					var event = new CustomEvent( 'hubspotOnFormReady', {
-						details: {
+						detail: {
 							form: $form,
 						},
 					} );
