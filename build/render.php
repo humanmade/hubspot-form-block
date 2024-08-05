@@ -32,7 +32,7 @@ $config = wp_parse_args( $attributes, [
 	'locale' => mb_substr( get_locale(), 0, 2 ),
 	'target' => sprintf( '#%s', $target ),
 	'formInstanceId' => $instance_id,
-	'submitButtonClass' => 'wp-block-button hs-button primary large',
+	'submitButtonClass' => 'wp-element-button hs-button primary large',
 ] );
 
 // Ensure config is valid.
