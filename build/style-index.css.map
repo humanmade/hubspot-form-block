@@ -1,1 +1,0 @@
-{"version":3,"file":"./style-index.css","mappings":";;;AAAA;EACC;AACD,C","sources":["webpack://hubspot-form/./src/style.scss"],"sourcesContent":[".wp-block-hubspot-form .hs-form__virality-link {\n\tdisplay: none;\n}\n"],"names":[],"sourceRoot":""}

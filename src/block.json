@@ -13,10 +13,7 @@
 		},
 		"region": {
 			"type": "string",
-			"enum": [
-				"eu1",
-				"na1"
-			],
+			"enum": [ "eu1", "na1" ],
 			"default": "eu1"
 		},
 		"formId": {

@@ -1,20 +1,20 @@
 {
-    "name": "humanmade/hubspot-form-block",
-    "description": "Hubspot Form Embed Block for WordPress",
-    "type": "wordpress-plugin",
-    "require": {
-        "composer/installers": "^2.3"
-    },
-    "license": "gpl-2.0-or-later",
-    "authors": [
-        {
-            "name": "Human Made Limited",
-            "email": "hello@humanmade.com"
-        }
-    ],
-    "config": {
-        "allow-plugins": {
-            "composer/installers": true
-        }
-    }
+	"name": "humanmade/hubspot-form-block",
+	"description": "Hubspot Form Embed Block for WordPress",
+	"type": "wordpress-plugin",
+	"require": {
+		"composer/installers": "^2.3"
+	},
+	"license": "gpl-2.0-or-later",
+	"authors": [
+		{
+			"name": "Human Made Limited",
+			"email": "hello@humanmade.com"
+		}
+	],
+	"config": {
+		"allow-plugins": {
+			"composer/installers": true
+		}
+	}
 }
