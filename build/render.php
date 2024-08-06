@@ -26,22 +26,42 @@ $target = sprintf(
 );
 
 // Generate config object.
-$config = wp_parse_args( $attributes, [
+$config = [
 	'portalId' => $portal_id,
 	'formId' => $form_id,
 	'locale' => mb_substr( get_locale(), 0, 2 ),
 	'target' => sprintf( '#%s', $target ),
 	'formInstanceId' => $instance_id,
 	'submitButtonClass' => 'wp-element-button hs-button primary large',
-] );
+];
 
-// Ensure config is valid.
-if ( isset( $config['inlineMessage'] ) ) {
-	unset( $config['redirectUrl'] );
+$optional_config = [
+	'redirectUrl',
+	'submitText',
+	'goToWebinarWebinarKey',
+	'sfdcCampaignId',
+];
+
+foreach ( $optional_config as $key ) {
+	if ( ! empty( $attributes[ $key ] ) ) {
+		$config[ $key ] = $attributes[ $key ];
+	}
+}
+
+// Add inline message if inner blocks present.
+if (
+	! isset( $config['redirectUrl'] ) &&
+	! empty( $block->parsed_block['innerBlocks'] ) &&
+	trim( $block->parsed_block['innerBlocks'][0]['innerHTML'] ) !== '<p></p>'
+) {
+	$inline_message = new WP_HTML_Tag_Processor( $content );
+	$inline_message->next_tag( 'div' );
+	$inline_message->remove_class( 'wp-block-hubspot-form' );
+	$inline_message->add_class( 'wp-block-hubspot-form__inline-message' );
+	$config['inlineMessage'] = (string) $inline_message;
 }
 
 // Google Tag Manager event.
-unset( $config['gtmEventName'] );
 $gtm_event_name = empty( $attributes['gtmEventName'] ) ? 'hubspot_form_submit' : $attributes['gtmEventName'];
 
 ?>

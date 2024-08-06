@@ -1,9 +1,8 @@
-import { useState } from '@wordpress/element';
+import { Children, useState } from '@wordpress/element';
 import { __ } from '@wordpress/i18n';
-import { InspectorControls, useBlockProps } from '@wordpress/block-editor';
-import { Button, PanelBody, SelectControl, TextControl, TextareaControl } from '@wordpress/components';
+import { InspectorControls, useBlockProps, useInnerBlocksProps } from '@wordpress/block-editor';
+import { Button, PanelBody, SelectControl, TextControl } from '@wordpress/components';
 import { useDispatch, useSelect } from '@wordpress/data';
-import ServerSideRenderer from '@wordpress/server-side-render';
 import './editor.scss';
 
 /**
@@ -15,6 +14,11 @@ import './editor.scss';
  * @return {WPElement} Element to render.
  */
 export default function Edit( { attributes, setAttributes } ) {
+	const { ...blockProps } = useBlockProps();
+	const { children, ...innerBlocksProps } = useInnerBlocksProps( blockProps, {
+		template: [ [ 'core/paragraph', { placeholder: __( 'Optional inline response message...', 'hubspot-from-block' ) } ] ],
+	} );
+
 	const {
 		portalId,
 		region,
@@ -23,7 +27,6 @@ export default function Edit( { attributes, setAttributes } ) {
 		submitText,
 		goToWebinarWebinarKey,
 		sfdcCampaignId,
-		inlineMessage,
 		gtmEventName,
 	} = attributes;
 
@@ -50,7 +53,7 @@ export default function Edit( { attributes, setAttributes } ) {
 	} );
 
 	return (
-		<div {...useBlockProps()}>
+		<div {...innerBlocksProps}>
 			<InspectorControls >
 				<PanelBody title={ __( 'Global Settings', 'hubspot-form-block' ) } initialOpen={ ! defaultPortalId && ! portalId }>
 					<TextControl
@@ -102,12 +105,6 @@ export default function Edit( { attributes, setAttributes } ) {
 						value={ redirectUrl }
 						onChange={ ( redirectUrl ) => setAttributes( { redirectUrl } ) }
 					/>
-					<TextareaControl
-						help={ __( 'Overrides redirect URL if provided', 'hubspot-form-block' ) }
-						label={ __( 'Inline message', 'hubspot-form-block' ) }
-						value={ inlineMessage }
-						onChange={ ( inlineMessage ) => setAttributes( { inlineMessage } ) }
-					/>
 					<TextControl
 						label={ __( 'Submit button text', 'hubspot-form-block' ) }
 						value={ submitText }
@@ -140,6 +137,10 @@ export default function Edit( { attributes, setAttributes } ) {
 			{ defaultPortalId && formId && (
 				<p>{ __( 'Please preview your changes to see the form, it cannot be shown in the editor directly.', 'hubspot-form-block' ) }</p>
 			) }
+			<hr />
+			<div className="wp-hubspot-form-block__inline-message">
+				{ children }
+			</div>
 		</div>
 	);
 }

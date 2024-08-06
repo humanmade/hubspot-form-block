@@ -12,7 +12,15 @@
 		rgba(0, 0, 0, 0.1) 20px);
 }
 
-.wp-block-hubspot-form h3,
-.wp-block-hubspot-form p {
+.wp-block-hubspot-form > h3,
+.wp-block-hubspot-form > p {
 	margin: 0 !important;
+}
+
+.wp-block-hubspot-form > hr {
+	width: 100%;
+	border: 1px solid rgba(0, 0, 0, 0.8);
+	border-width: 1px 0 0;
+	background: none;
+	margin: 0.5rem 0;
 }
