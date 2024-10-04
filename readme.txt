@@ -41,5 +41,23 @@ e.g.
 
 == Changelog ==
 
+= 0.2.2 =
+* Fix: `wp-scripts` version
+
+= 0.2.1=
+* Fix: `composer/installers` version
+
+= 0.2.0 =
+* Add: Support for HTML/inner blocks inline message
+
+= 0.1.3 =
+* Fix: Submit button class
+
+= 0.1.2 =
+* Fix: Custom event detail name
+
+= 0.1.1 =
+* Fix: Instance ID handling
+
 = 0.1.0 =
 * Release
