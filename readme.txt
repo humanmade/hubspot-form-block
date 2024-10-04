@@ -1,8 +1,8 @@
 === Hubspot Form Block ===
 Contributors:      Human Made Limited
 Tags:              block, hubspot, forms
-Tested up to:      6.1
-Stable tag:        0.1.0
+Tested up to:      6.6
+Stable tag:        0.2.2
 License:           GPL-2.0-or-later
 License URI:       https://www.gnu.org/licenses/gpl-2.0.html
 
