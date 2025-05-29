@@ -29,6 +29,10 @@ Features:
 - Hubspot tracking JS loaded in footer based on global Portal ID setting
 - Deferred script loading for performance
 
+Styling forms:
+
+Forms can be styled from within the Hubspot dashboard. Styled forms are loaded in an iframe to ensure they don't conflict with your site styles. If you wish to remove all hubspot styling and load the form directly on the page, so that any site form styling is applied, select the option "Set as raw HTML form" in the Hubspot form styles settings page. 
+
 == Installation ==
 
 This section describes how to install the plugin and get it working.
