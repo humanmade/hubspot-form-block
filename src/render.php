@@ -2,6 +2,7 @@
 global $hubspot_form_block_instance_ids;
 
 $portal_id = $attributes['portalId'] ?: get_option( 'hubspot_embed_portal_id' );
+$region = $attributes['region'] ?: get_option( 'hubspot_embed_region', 'eu1' );
 $form_id = $attributes['formId'] ?: '';
 
 if ( empty( $portal_id ) || empty( $form_id ) ) {
@@ -28,6 +29,7 @@ $target = sprintf(
 // Generate config object.
 $config = [
 	'portalId' => $portal_id,
+	'region' => $region,
 	'formId' => $form_id,
 	'locale' => mb_substr( get_locale(), 0, 2 ),
 	'target' => sprintf( '#%s', $target ),
