@@ -30,9 +30,11 @@ function block_init() {
 add_action( 'init', __NAMESPACE__ . '\\block_init' );
 
 function register_scripts() {
+	$region = get_option( 'hubspot_embed_region', 'eu1' ) === 'eu1' ? 'js-eu1' : 'js';
+
 	wp_register_script(
 		'hs-forms',
-		'https://js.hsforms.net/forms/v2.js',
+		sprintf( 'https://%s.hsforms.net/forms/embed/v2.js', $region ),
 		[],
 		null,
 		[ 'strategy' => 'async' ]
@@ -59,11 +61,11 @@ function enqueue_scripts() {
 		return;
 	}
 
-	$region = get_option( 'hubspot_embed_region', 'eu1' );
+	$region = get_option( 'hubspot_embed_region', 'eu1' ) === 'eu1' ? 'js-eu1' : 'js';
 
 	wp_enqueue_script(
 		'hs-script-loader',
-		sprintf( 'https://js-%s.hs-scripts.com/%s.js', $region, $portal_id ),
+		sprintf( 'https://%s.hs-scripts.com/%s.js', $region, $portal_id ),
 		[],
 		null,
 		[
