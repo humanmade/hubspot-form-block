@@ -116,6 +116,14 @@ export default function Edit( { attributes, setAttributes } ) {
 							setAttributes( { region } );
 							setIsGlobalChanged( true );
 						} }
+						help={
+							( region && region !== defaultRegion )
+								? __(
+										'Warning: Region used for this block is not the same as the global default. This may cause issues.',
+										'hubspot-form-block'
+								  )
+								: undefined
+						}
 					/>
 					{ canSetPortalId && isGlobalChanged && (
 						<Button
