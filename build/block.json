@@ -1,8 +1,8 @@
 {
   "$schema": "https://schemas.wp.org/trunk/block.json",
-  "apiVersion": 2,
+  "apiVersion": 3,
   "name": "hubspot/form",
-  "version": "0.1.0",
+  "version": "0.3.0",
   "title": "Hubspot Form",
   "category": "embed",
   "icon": "clipboard",
@@ -58,6 +58,9 @@
   "editorScript": "file:./index.js",
   "editorStyle": "file:./index.css",
   "style": "file:./style-index.css",
-  "viewScript": "hs-forms",
+  "viewScript": [
+    "file:./view.js",
+    "hs-forms"
+  ],
   "render": "file:./render.php"
 }

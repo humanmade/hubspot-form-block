@@ -5,7 +5,7 @@
  * Description:       Hubspot form embed block with configuration options
  * Requires at least: 6.1
  * Requires PHP:      7.0
- * Version:           0.2.2
+ * Version:           0.3.0
  * Author:            Human Made Limited
  * License:           GPL-2.0-or-later
  * License URI:       https://www.gnu.org/licenses/gpl-2.0.html
@@ -30,28 +30,23 @@ function block_init() {
 add_action( 'init', __NAMESPACE__ . '\\block_init' );
 
 function register_scripts() {
+	$portal_id = get_option( 'hubspot_embed_portal_id' );
+	if ( empty( $portal_id ) ) {
+		return;
+	}
+
+	$region = get_option( 'hubspot_embed_region', 'eu1' );
+
 	wp_register_script(
 		'hs-forms',
-		'https://js.hsforms.net/forms/v2.js',
-		[],
+		sprintf( 'https://js-%s.hsforms.net/forms/embed/developer/%s.js', $region, $portal_id ),
+		[ 'hubspot-form-view-script' ],
 		null,
 		[ 'strategy' => 'async' ]
 	);
 }
 
 add_action( 'enqueue_block_assets', __NAMESPACE__ . '\\register_scripts' );
-
-function inject_onload_handler( $tag, $handle ) {
-	if ( 'hs-forms' !== $handle ) {
-		return $tag;
-	}
-
-	$tag = str_replace( '></script>', ' onload="window.dispatchEvent(new CustomEvent(\'hubspotFormsReady\'));"></script>', $tag );
-
-	return $tag;
-}
-
-add_filter( 'script_loader_tag', __NAMESPACE__ . '\\inject_onload_handler', 10, 2 );
 
 function enqueue_scripts() {
 	$portal_id = get_option( 'hubspot_embed_portal_id' );
