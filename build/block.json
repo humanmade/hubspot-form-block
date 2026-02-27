@@ -58,6 +58,9 @@
   "editorScript": "file:./index.js",
   "editorStyle": "file:./index.css",
   "style": "file:./style-index.css",
-  "viewScript": "hs-forms",
+  "viewScript": [
+    "file:./view.js",
+    "hs-forms"
+  ],
   "render": "file:./render.php"
 }

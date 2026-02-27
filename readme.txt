@@ -1,8 +1,8 @@
 === Hubspot Form Block ===
 Contributors:      Human Made Limited
 Tags:              block, hubspot, forms
-Tested up to:      6.6
-Stable tag:        0.2.2
+Tested up to:      6.9
+Stable tag:        0.3.0
 License:           GPL-2.0-or-later
 License URI:       https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -12,6 +12,8 @@ A lightweight Hubspot Form embed block with configuration options.
 
 A basic block for embedding Hubspot forms on your website.
 
+NOTE: This is using the Hubspot Forms v4 API.
+
 Allows configuring the following settings:
 
 - Portal ID, can be set globally for the and overridden per instance
@@ -19,8 +21,6 @@ Allows configuring the following settings:
 - Form ID, multiple instance of the same form are supported
 - Redirect URL
 - Inline message, overrides redirect URL if provided
-- Salesforce campaign key
-- GoToWebinar key
 - Google Tag Manager event name on submit
 
 Features:
@@ -31,7 +31,9 @@ Features:
 
 Styling forms:
 
-Forms can be styled from within the Hubspot dashboard. Styled forms are loaded in an iframe to ensure they don't conflict with your site styles. If you wish to remove all hubspot styling and load the form directly on the page, so that any site form styling is applied, select the option "Set as raw HTML form" in the Hubspot form styles settings page. 
+Forms can be styled from within the Hubspot dashboard, or by overriding the CSS variables defined on this page.
+
+https://developers.hubspot.com/docs/cms/start-building/features/forms/forms#define-custom-styling-for-embedded-forms-using-css
 
 == Installation ==
 
@@ -44,6 +46,9 @@ e.g.
 
 
 == Changelog ==
+
+= 0.3.0 =
+* Update: Upgraded to Hubspot Forms v4 API
 
 = 0.2.2 =
 * Fix: `wp-scripts` version
