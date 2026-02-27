@@ -72,5 +72,8 @@ $wrapper_attributes = [
 	window.hsForms['<?php echo esc_js( $target ); ?>'] = <?php echo wp_json_encode( $config ); ?>;
 </script>
 <div <?php echo get_block_wrapper_attributes( $wrapper_attributes ); ?>>
-	<p><?php esc_html_e( 'This form may not be visible due to adblockers, or JavaScript not being enabled.', 'hubspot-form-block' ); ?></p>
+	<div class="wp-block-hubspot-form__loading"></div>
+	<noscript>
+		<p><?php esc_html_e( 'This form may not be visible due to adblockers, or JavaScript not being enabled.', 'hubspot-form-block' ); ?></p>
+	</noscript>
 </div>
