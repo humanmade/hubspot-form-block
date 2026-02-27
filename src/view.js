@@ -56,6 +56,6 @@ window.addEventListener( 'hs-form-event:on-submission:success', ( event ) => {
 		} );
 		const purifiedHTML = policy.createHTML( config.inlineMessage );
 		const doc = parser.parseFromString( purifiedHTML, 'text/html' );
-		element.replaceChildren( doc.body.children );
+		element.replaceChildren( ...doc.body.children );
 	}
 } );
