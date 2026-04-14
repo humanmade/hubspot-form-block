@@ -44,8 +44,6 @@ export default function Edit( { attributes, setAttributes } ) {
 		formId,
 		redirectUrl,
 		submitText,
-		goToWebinarWebinarKey,
-		sfdcCampaignId,
 		gtmEventName,
 	} = attributes;
 
@@ -162,26 +160,6 @@ export default function Edit( { attributes, setAttributes } ) {
 					/>
 					<TextControl
 						label={ __(
-							'SalesForce campaign key',
-							'hubspot-form-block'
-						) }
-						value={ sfdcCampaignId }
-						onChange={ ( sfdcCampaignId ) =>
-							setAttributes( { sfdcCampaignId } )
-						}
-					/>
-					<TextControl
-						label={ __(
-							'GoToWebinar webinar key',
-							'hubspot-form-block'
-						) }
-						value={ goToWebinarWebinarKey }
-						onChange={ ( goToWebinarWebinarKey ) =>
-							setAttributes( { goToWebinarWebinarKey } )
-						}
-					/>
-					<TextControl
-						label={ __(
 							'Google Tag Manager event name',
 							'hubspot-form-block'
 						) }
@@ -227,9 +205,16 @@ export default function Edit( { attributes, setAttributes } ) {
 					) }
 				</p>
 			) }
-			<hr />
-			<div className="wp-hubspot-form-block__inline-message">
-				{ children }
+			<div className="wp-hubspot-form-block__inline-message-wrapper">
+				<p className="wp-hubspot-form-block__inline-message-label">
+					{ __(
+						'Success message — shown in place of the form after submission',
+						'hubspot-form-block'
+					) }
+				</p>
+				<div className="wp-hubspot-form-block__inline-message">
+					{ children }
+				</div>
 			</div>
 		</div>
 	);
