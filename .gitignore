@@ -31,3 +31,10 @@ node_modules/
 
 /vendor/
 composer.lock
+
+# Git worktrees
+.worktrees/
+
+# Test artifacts
+test-results/
+playwright-report/
