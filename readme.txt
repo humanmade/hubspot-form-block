@@ -2,7 +2,7 @@
 Contributors:      Human Made Limited
 Tags:              block, hubspot, forms
 Tested up to:      6.9
-Stable tag:        0.3.0
+Stable tag:        0.4.0
 License:           GPL-2.0-or-later
 License URI:       https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -28,6 +28,7 @@ Features:
 - Built in Google Tag Manager support with customisable form submit event names, default is `hubspot_form_submit`
 - Hubspot tracking JS loaded in footer based on global Portal ID setting
 - Deferred script loading for performance
+- Trusted iframe hosts filter to opt in to embedding videos (e.g. YouTube, Vimeo) inside the inline success message — see the `hubspot_form_block_trusted_iframe_hosts` filter
 
 Styling forms:
 
@@ -46,6 +47,9 @@ e.g.
 
 
 == Changelog ==
+
+= 0.4.0 =
+* Add: `hubspot_form_block_trusted_iframe_hosts` filter to allow `<iframe>` elements from trusted host domains inside the inline success message. Defaults to an empty array (no behaviour change). Useful for embedding YouTube/Vimeo videos in post-submission content.
 
 = 0.3.0 =
 * Update: Upgraded to Hubspot Forms v4 API
