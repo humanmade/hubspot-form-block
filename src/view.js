@@ -46,7 +46,9 @@ window.addEventListener( 'hs-form-event:on-submission:success', ( event ) => {
 		return;
 	}
 
-	const template = document.getElementById( `${ instanceId }-inline-message` );
+	const template = document.getElementById(
+		`${ instanceId }-inline-message`
+	);
 	if ( template && template.content ) {
 		const element = document.getElementById( instanceId );
 		element.replaceChildren( template.content.cloneNode( true ) );
