@@ -53,6 +53,38 @@ if (
 	$inline_message->remove_class( 'wp-block-hubspot-form' );
 	$inline_message->add_class( 'wp-block-hubspot-form__inline-message' );
 	$config['inlineMessage'] = (string) $inline_message;
+
+	/**
+	 * Filters the list of trusted iframe host domains allowed inside the
+	 * inline success message.
+	 *
+	 * By default, the inline message is sanitized with DOMPurify's default
+	 * safe list, which strips `<iframe>` elements. Site owners can use this
+	 * filter to opt in to allowing iframes from a set of trusted hosts
+	 * (for example, to embed YouTube or Vimeo videos inside the success
+	 * message).
+	 *
+	 * Each entry is matched against the iframe `src` hostname as either an
+	 * exact match or a subdomain match — e.g. `youtube.com` matches both
+	 * `youtube.com` and `www.youtube.com`. Returning an empty array keeps
+	 * the default behaviour (no iframes allowed).
+	 *
+	 * @param string[] $trusted_hosts Array of trusted host domains. Default empty.
+	 * @param array    $attributes    Block attributes.
+	 * @param WP_Block $block         Block instance.
+	 */
+	$trusted_iframe_hosts = apply_filters(
+		'hubspot_form_block_trusted_iframe_hosts',
+		[],
+		$attributes,
+		$block
+	);
+
+	if ( is_array( $trusted_iframe_hosts ) && ! empty( $trusted_iframe_hosts ) ) {
+		$config['trustedIframeHosts'] = array_values(
+			array_map( 'strval', $trusted_iframe_hosts )
+		);
+	}
 }
 
 // Google Tag Manager event.
