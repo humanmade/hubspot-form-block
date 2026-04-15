@@ -2,7 +2,7 @@
 Contributors:      Human Made Limited
 Tags:              block, hubspot, forms
 Tested up to:      6.9
-Stable tag:        0.4.0
+Stable tag:        0.5.0
 License:           GPL-2.0-or-later
 License URI:       https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -47,6 +47,14 @@ e.g.
 
 
 == Changelog ==
+
+= 0.5.0 =
+* Add: Inner blocks as inline success message — add any WordPress blocks (paragraphs, images, embeds, etc.) directly inside the form block; they replace the form after successful submission
+* Add: Playwright end-to-end test suite covering block registration, form rendering, and inline success message behaviour
+* Add: WordPress Playground local development environment (`npm run playground:start`)
+* Add: GitHub Actions CI workflows for automated testing on push
+* Update: Success message now uses a `<template>` element approach — server-rendered block HTML is preserved exactly, including embedded iframes, without client-side sanitization
+* Remove: Legacy `inlineMessage` string attribute (template-based inner blocks replace it; existing content migrates automatically)
 
 = 0.4.0 =
 * Add: `hubspot_form_block_trusted_iframe_hosts` filter to allow `<iframe>` elements from trusted host domains inside the inline success message. Defaults to an empty array (no behaviour change). Useful for embedding YouTube/Vimeo videos in post-submission content.
