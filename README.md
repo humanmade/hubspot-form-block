@@ -8,7 +8,6 @@ A WordPress block plugin that embeds HubSpot Forms v4 directly in page content. 
 - **Inline success message** — add any WordPress blocks as the post-submission message; shown in place of the form after submission
 - **Global settings** — set Portal ID and region site-wide; override per block instance
 - **Google Tag Manager** — fires a configurable dataLayer event on submission (default: `hubspot_form_submit`)
-- **Trusted iframe hosts** — opt in to embedding `<iframe>` elements (e.g. YouTube, Vimeo) inside the inline success message via the `hubspot_form_block_trusted_iframe_hosts` filter
 - **Deferred script loading** — HubSpot tracking JS loaded asynchronously in the footer
 - **Custom submit button text** — override the form's submit button label per block instance
 - **Redirect on submit** — optionally redirect to a URL instead of showing an inline message
@@ -58,18 +57,6 @@ npm run lint:css        # Lint CSS
 ```
 
 > **Note:** The `--webpack-copy-php` flag on `build`/`start` is required — it copies `render.php` from `src/` to `build/`. Do not remove it.
-
-## Filters
-
-### `hubspot_form_block_trusted_iframe_hosts`
-
-Allows `<iframe>` elements from specified host domains inside the inline success message. Defaults to an empty array (no iframes allowed).
-
-```php
-add_filter( 'hubspot_form_block_trusted_iframe_hosts', function ( $hosts ) {
-    return array_merge( $hosts, [ 'www.youtube.com', 'player.vimeo.com' ] );
-} );
-```
 
 ## Architecture
 
