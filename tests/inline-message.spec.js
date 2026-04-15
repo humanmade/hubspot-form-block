@@ -36,11 +36,11 @@ test.describe( 'HubSpot Form — inline success message', () => {
 		await page.goto( `/?p=${ postId }` );
 
 		const container = page.locator( '.hs-form-html' );
-		await expect( container ).toBeVisible();
+		await expect( container ).toBeAttached();
 
 		const instanceId = await container.getAttribute( 'id' );
 
-		// The <template> element should exist in the DOM.
+		// The <template> element is emitted server-side by render.php.
 		const template = page.locator(
 			`template#${ instanceId }-inline-message`
 		);
@@ -80,11 +80,12 @@ test.describe( 'HubSpot Form — inline success message', () => {
 		await page.goto( `/?p=${ postId }` );
 
 		const container = page.locator( '.hs-form-html' );
-		await expect( container ).toBeVisible();
+		await expect( container ).toBeAttached();
 
 		const instanceId = await container.getAttribute( 'id' );
 
-		// The template should contain an iframe (YouTube embed).
+		// The template's content fragment should contain an iframe (YouTube embed).
+		// Previously DOMPurify stripped iframes; the <template> approach preserves them.
 		const hasIframe = await page.evaluate( ( id ) => {
 			const tmpl = document.getElementById( `${ id }-inline-message` );
 			if ( ! tmpl ) return false;
@@ -117,7 +118,7 @@ test.describe( 'HubSpot Form — inline success message', () => {
 		await page.goto( `/?p=${ postId }` );
 
 		const container = page.locator( '.hs-form-html' );
-		await expect( container ).toBeVisible();
+		await expect( container ).toBeAttached();
 
 		const instanceId = await container.getAttribute( 'id' );
 		const template = page.locator(

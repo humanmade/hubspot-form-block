@@ -6,7 +6,7 @@ const config = {
 	fullyParallel: true,
 	forbidOnly: !! process.env.CI,
 	retries: process.env.CI ? 2 : 0,
-	workers: process.env.CI ? 1 : 2,
+	workers: 1,
 	reporter: [
 		[ 'html', { open: process.env.CI ? 'never' : 'on-failure' } ],
 		[ 'json', { outputFile: 'test-results/results.json' } ],
@@ -25,10 +25,14 @@ const config = {
 	webServer: process.env.CI
 		? undefined
 		: {
-				command: `cd ${ __dirname } && npm run playground:start`,
-				url: 'http://127.0.0.1:9400/wp-admin/',
+				command: `npm run playground:start`,
+				url: process.env.WP_BASE_URL || 'http://127.0.0.1:9400',
+				wait: {
+					stdout: /Ready\!/,
+				},
+				stdout: 'pipe',
 				reuseExistingServer: true,
-				timeout: 120000,
+				timeout: 60000,
 		  },
 };
 

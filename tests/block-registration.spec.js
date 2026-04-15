@@ -3,6 +3,11 @@
  */
 const { test, expect } = require( '@wordpress/e2e-test-utils-playwright' );
 
+/**
+ * Internal dependencies
+ */
+const { editorCanvas } = require( './helpers' );
+
 test.describe( 'HubSpot Form Block', () => {
 	test( 'should be registered and insertable', async ( {
 		admin,
@@ -33,9 +38,9 @@ test.describe( 'HubSpot Form Block', () => {
 
 		await editor.insertBlock( { name: 'hubspot/form' } );
 
-		const block = page.locator(
-			'[data-type="hubspot/form"]'
-		);
+		const block = editorCanvas( page ).getByRole( 'document', {
+			name: 'Block: Hubspot Form',
+		} );
 		await expect( block ).toBeVisible();
 		await expect(
 			block.getByText( /Portal ID.*Form ID/i )
@@ -54,7 +59,10 @@ test.describe( 'HubSpot Form Block', () => {
 
 		await editor.insertBlock( { name: 'hubspot/form' } );
 
-		const block = page.locator( '[data-type="hubspot/form"]' );
+		const block = editorCanvas( page ).getByRole( 'document', {
+			name: 'Block: Hubspot Form',
+		} );
+		await expect( block ).toBeVisible();
 		await expect(
 			block.getByText( /Success message/i )
 		).toBeVisible();

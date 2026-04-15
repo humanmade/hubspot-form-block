@@ -11,7 +11,6 @@ test.describe( 'HubSpot Form — frontend render', () => {
 		admin,
 		editor,
 		page,
-		requestUtils,
 	} ) => {
 		await admin.createNewPost();
 		await editor.setPreferences( 'core/edit-post', {
@@ -30,13 +29,12 @@ test.describe( 'HubSpot Form — frontend render', () => {
 		const postId = await editor.publishPost();
 		await page.goto( `/?p=${ postId }` );
 
-		// The form container should be present with the right data attributes.
+		// The container is present in the DOM with the correct attributes.
+		// We use toBeAttached (not toBeVisible) because the container is
+		// visually hidden until the HubSpot script loads externally.
 		const container = page.locator( '.hs-form-html' );
-		await expect( container ).toBeVisible();
-		await expect( container ).toHaveAttribute(
-			'data-portal-id',
-			PORTAL_ID
-		);
+		await expect( container ).toBeAttached();
+		await expect( container ).toHaveAttribute( 'data-portal-id', PORTAL_ID );
 		await expect( container ).toHaveAttribute( 'data-form-id', FORM_ID );
 	} );
 
@@ -62,10 +60,11 @@ test.describe( 'HubSpot Form — frontend render', () => {
 		const postId = await editor.publishPost();
 		await page.goto( `/?p=${ postId }` );
 
-		// Confirm the inline config script set window.hsForms for this instance.
 		const container = page.locator( '.hs-form-html' );
-		await expect( container ).toBeVisible();
+		await expect( container ).toBeAttached();
 
+		// The inline <script> in render.php sets window.hsForms synchronously,
+		// independent of whether the external HubSpot script loads.
 		const instanceId = await container.getAttribute( 'id' );
 		const config = await page.evaluate(
 			( id ) => window.hsForms?.[ id ],
