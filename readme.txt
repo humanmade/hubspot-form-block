@@ -28,7 +28,6 @@ Features:
 - Built in Google Tag Manager support with customisable form submit event names, default is `hubspot_form_submit`
 - Hubspot tracking JS loaded in footer based on global Portal ID setting
 - Deferred script loading for performance
-- Trusted iframe hosts filter to opt in to embedding videos (e.g. YouTube, Vimeo) inside the inline success message — see the `hubspot_form_block_trusted_iframe_hosts` filter
 
 Styling forms:
 
