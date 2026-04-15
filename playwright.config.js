@@ -25,8 +25,8 @@ const config = {
 	webServer: process.env.CI
 		? undefined
 		: {
-				command: 'npm run playground:start',
-				port: 9400,
+				command: `cd ${ __dirname } && npm run playground:start`,
+				url: 'http://127.0.0.1:9400/wp-admin/',
 				reuseExistingServer: true,
 				timeout: 120000,
 		  },
