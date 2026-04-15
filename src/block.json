@@ -26,12 +26,6 @@
 		"submitText": {
 			"type": "string"
 		},
-		"goToWebinarWebinarKey": {
-			"type": "string"
-		},
-		"sfdcCampaignId": {
-			"type": "string"
-		},
 		"inlineMessage": {
 			"type": "string"
 		},

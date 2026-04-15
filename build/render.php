@@ -43,48 +43,17 @@ foreach ( $optional_config as $key => $callback ) {
 }
 
 // Add inline message if inner blocks present.
-if (
+$has_inline_message = (
 	! isset( $config['redirectUrl'] ) &&
 	! empty( $block->parsed_block['innerBlocks'] ) &&
 	trim( $block->parsed_block['innerBlocks'][0]['innerHTML'] ) !== '<p></p>'
-) {
+);
+if ( $has_inline_message ) {
 	$inline_message = new WP_HTML_Tag_Processor( $content );
 	$inline_message->next_tag( 'div' );
 	$inline_message->remove_class( 'wp-block-hubspot-form' );
 	$inline_message->add_class( 'wp-block-hubspot-form__inline-message' );
-	$config['inlineMessage'] = (string) $inline_message;
-
-	/**
-	 * Filters the list of trusted iframe host domains allowed inside the
-	 * inline success message.
-	 *
-	 * By default, the inline message is sanitized with DOMPurify's default
-	 * safe list, which strips `<iframe>` elements. Site owners can use this
-	 * filter to opt in to allowing iframes from a set of trusted hosts
-	 * (for example, to embed YouTube or Vimeo videos inside the success
-	 * message).
-	 *
-	 * Each entry is matched against the iframe `src` hostname as either an
-	 * exact match or a subdomain match — e.g. `youtube.com` matches both
-	 * `youtube.com` and `www.youtube.com`. Returning an empty array keeps
-	 * the default behaviour (no iframes allowed).
-	 *
-	 * @param string[] $trusted_hosts Array of trusted host domains. Default empty.
-	 * @param array    $attributes    Block attributes.
-	 * @param WP_Block $block         Block instance.
-	 */
-	$trusted_iframe_hosts = apply_filters(
-		'hubspot_form_block_trusted_iframe_hosts',
-		[],
-		$attributes,
-		$block
-	);
-
-	if ( is_array( $trusted_iframe_hosts ) && ! empty( $trusted_iframe_hosts ) ) {
-		$config['trustedIframeHosts'] = array_values(
-			array_map( 'strval', $trusted_iframe_hosts )
-		);
-	}
+	$inline_message_html = (string) $inline_message;
 }
 
 // Google Tag Manager event.
@@ -103,6 +72,9 @@ $wrapper_attributes = [
 	window.hsForms = window.hsForms || {};
 	window.hsForms['<?php echo esc_js( $target ); ?>'] = <?php echo wp_json_encode( $config ); ?>;
 </script>
+<?php if ( $has_inline_message ) : ?>
+<template id="<?php echo esc_attr( $target ); ?>-inline-message"><?php echo $inline_message_html; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- server-rendered trusted block content ?></template>
+<?php endif; ?>
 <div <?php echo get_block_wrapper_attributes( $wrapper_attributes ); ?>>
 	<div class="wp-block-hubspot-form__loading"></div>
 	<noscript>
