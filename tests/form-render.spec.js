@@ -34,7 +34,10 @@ test.describe( 'HubSpot Form — frontend render', () => {
 		// visually hidden until the HubSpot script loads externally.
 		const container = page.locator( '.hs-form-html' );
 		await expect( container ).toBeAttached();
-		await expect( container ).toHaveAttribute( 'data-portal-id', PORTAL_ID );
+		await expect( container ).toHaveAttribute(
+			'data-portal-id',
+			PORTAL_ID
+		);
 		await expect( container ).toHaveAttribute( 'data-form-id', FORM_ID );
 	} );
 

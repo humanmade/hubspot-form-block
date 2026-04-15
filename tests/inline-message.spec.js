@@ -88,7 +88,9 @@ test.describe( 'HubSpot Form — inline success message', () => {
 		// Previously DOMPurify stripped iframes; the <template> approach preserves them.
 		const hasIframe = await page.evaluate( ( id ) => {
 			const tmpl = document.getElementById( `${ id }-inline-message` );
-			if ( ! tmpl ) return false;
+			if ( ! tmpl ) {
+				return false;
+			}
 			return tmpl.content.querySelector( 'iframe' ) !== null;
 		}, instanceId );
 
