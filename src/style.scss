@@ -2,6 +2,7 @@
 	opacity: 1;
 	transition: all 300ms ease-in;
 
+	/* stylelint-disable-next-line scss/at-rule-no-unknown */
 	@starting-style {
 		opacity: 0;
 	}

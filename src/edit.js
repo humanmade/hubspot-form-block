@@ -1,4 +1,4 @@
-import { Children, useState } from '@wordpress/element';
+import { useState } from '@wordpress/element';
 import { __ } from '@wordpress/i18n';
 import {
 	InspectorControls,
@@ -18,9 +18,12 @@ import './editor.scss';
  * The edit function describes the structure of your block in the context of the
  * editor. This represents what the editor will render when the block is used.
  *
+ * @param {Object}   root0               - Block props object
+ * @param {Object}   root0.attributes    - Block attributes
+ * @param {Function} root0.setAttributes - Function to set block attributes
  * @see https://developer.wordpress.org/block-editor/reference-guides/block-api/block-edit-save/#edit
  *
- * @return {WPElement} Element to render.
+ * @return {JSX.Element} Element to render.
  */
 export default function Edit( { attributes, setAttributes } ) {
 	const { ...blockProps } = useBlockProps();
@@ -30,7 +33,7 @@ export default function Edit( { attributes, setAttributes } ) {
 				'core/paragraph',
 				{
 					placeholder: __(
-						'Optional inline response message...',
+						'Optional inline response message…',
 						'hubspot-from-block'
 					),
 				},
@@ -38,16 +41,8 @@ export default function Edit( { attributes, setAttributes } ) {
 		],
 	} );
 
-	const {
-		portalId,
-		region,
-		formId,
-		redirectUrl,
-		submitText,
-		goToWebinarWebinarKey,
-		sfdcCampaignId,
-		gtmEventName,
-	} = attributes;
+	const { portalId, region, formId, redirectUrl, submitText, gtmEventName } =
+		attributes;
 
 	const [ isGlobalChanged, setIsGlobalChanged ] = useState( false );
 
@@ -55,21 +50,15 @@ export default function Edit( { attributes, setAttributes } ) {
 		canSetPortalId,
 		defaultPortalId = '',
 		defaultRegion,
-	} = useSelect(
-		( select ) => {
-			const settings = select( 'core' ).getSite();
+	} = useSelect( ( select ) => {
+		const settings = select( 'core' ).getSite();
 
-			return {
-				canSetPortalId: select( 'core' ).canUser(
-					'update',
-					'settings'
-				),
-				defaultPortalId: settings?.hubspot_embed_portal_id || '',
-				defaultRegion: settings?.hubspot_embed_region || 'eu1',
-			};
-		},
-		[ isGlobalChanged ]
-	);
+		return {
+			canSetPortalId: select( 'core' ).canUser( 'update', 'settings' ),
+			defaultPortalId: settings?.hubspot_embed_portal_id || '',
+			defaultRegion: settings?.hubspot_embed_region || 'eu1',
+		};
+	} );
 
 	const { saveSite } = useDispatch( 'core' );
 	const updateDefaults = ( newPortalId, newRegion ) =>
@@ -89,8 +78,8 @@ export default function Edit( { attributes, setAttributes } ) {
 						label={ __( 'Portal ID', 'hubspot-form-block' ) }
 						value={ portalId }
 						placeholder={ defaultPortalId }
-						onChange={ ( portalId ) => {
-							setAttributes( { portalId } );
+						onChange={ ( newPortalId ) => {
+							setAttributes( { portalId: newPortalId } );
 							setIsGlobalChanged( true );
 						} }
 						required={ ! defaultPortalId }
@@ -112,8 +101,8 @@ export default function Edit( { attributes, setAttributes } ) {
 						] }
 						value={ region }
 						defaultValue={ defaultRegion }
-						onChange={ ( region ) => {
-							setAttributes( { region } );
+						onChange={ ( newRegion ) => {
+							setAttributes( { region: newRegion } );
 							setIsGlobalChanged( true );
 						} }
 					/>
@@ -139,15 +128,17 @@ export default function Edit( { attributes, setAttributes } ) {
 					<TextControl
 						label={ __( 'Form ID', 'hubspot-form-block' ) }
 						value={ formId }
-						onChange={ ( formId ) => setAttributes( { formId } ) }
+						onChange={ ( newFormId ) =>
+							setAttributes( { formId: newFormId } )
+						}
 						required
 					/>
 					<TextControl
 						label={ __( 'Redirect URL', 'hubspot-form-block' ) }
 						type="url"
 						value={ redirectUrl }
-						onChange={ ( redirectUrl ) =>
-							setAttributes( { redirectUrl } )
+						onChange={ ( newRedirectUrl ) =>
+							setAttributes( { redirectUrl: newRedirectUrl } )
 						}
 					/>
 					<TextControl
@@ -156,28 +147,8 @@ export default function Edit( { attributes, setAttributes } ) {
 							'hubspot-form-block'
 						) }
 						value={ submitText }
-						onChange={ ( submitText ) =>
-							setAttributes( { submitText } )
-						}
-					/>
-					<TextControl
-						label={ __(
-							'SalesForce campaign key',
-							'hubspot-form-block'
-						) }
-						value={ sfdcCampaignId }
-						onChange={ ( sfdcCampaignId ) =>
-							setAttributes( { sfdcCampaignId } )
-						}
-					/>
-					<TextControl
-						label={ __(
-							'GoToWebinar webinar key',
-							'hubspot-form-block'
-						) }
-						value={ goToWebinarWebinarKey }
-						onChange={ ( goToWebinarWebinarKey ) =>
-							setAttributes( { goToWebinarWebinarKey } )
+						onChange={ ( newSubmitText ) =>
+							setAttributes( { submitText: newSubmitText } )
 						}
 					/>
 					<TextControl
@@ -186,8 +157,8 @@ export default function Edit( { attributes, setAttributes } ) {
 							'hubspot-form-block'
 						) }
 						value={ gtmEventName }
-						onChange={ ( gtmEventName ) =>
-							setAttributes( { gtmEventName } )
+						onChange={ ( newGtmEventName ) =>
+							setAttributes( { gtmEventName: newGtmEventName } )
 						}
 					/>
 				</PanelBody>
@@ -227,9 +198,16 @@ export default function Edit( { attributes, setAttributes } ) {
 					) }
 				</p>
 			) }
-			<hr />
-			<div className="wp-hubspot-form-block__inline-message">
-				{ children }
+			<div className="wp-hubspot-form-block__inline-message-wrapper">
+				<p className="wp-hubspot-form-block__inline-message-label">
+					{ __(
+						'Success message — shown in place of the form after submission',
+						'hubspot-form-block'
+					) }
+				</p>
+				<div className="wp-hubspot-form-block__inline-message">
+					{ children }
+				</div>
 			</div>
 		</div>
 	);
