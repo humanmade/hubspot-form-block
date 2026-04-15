@@ -12,7 +12,6 @@ test.describe( 'HubSpot Form Block', () => {
 	test( 'should be registered and insertable', async ( {
 		admin,
 		editor,
-		page,
 	} ) => {
 		await admin.createNewPost();
 		await editor.setPreferences( 'core/edit-post', {
@@ -42,9 +41,7 @@ test.describe( 'HubSpot Form Block', () => {
 			name: 'Block: Hubspot Form',
 		} );
 		await expect( block ).toBeVisible();
-		await expect(
-			block.getByText( /Portal ID.*Form ID/i )
-		).toBeVisible();
+		await expect( block.getByText( /Portal ID.*Form ID/i ) ).toBeVisible();
 	} );
 
 	test( 'should show labeled success-message zone', async ( {
@@ -63,8 +60,6 @@ test.describe( 'HubSpot Form Block', () => {
 			name: 'Block: Hubspot Form',
 		} );
 		await expect( block ).toBeVisible();
-		await expect(
-			block.getByText( /Success message/i )
-		).toBeVisible();
+		await expect( block.getByText( /Success message/i ) ).toBeVisible();
 	} );
 } );
