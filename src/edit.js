@@ -123,7 +123,7 @@ export default function Edit( { attributes, setAttributes, clientId } ) {
 			<InspectorControls>
 				<PanelBody
 					title={ __( 'Global Settings', 'hubspot-form-block' ) }
-					initialOpen={ ! defaultPortalId && ! portalId }
+					initialOpen={ ! defaultPortalId }
 				>
 					<TextControl
 						label={ __( 'Portal ID', 'hubspot-form-block' ) }
