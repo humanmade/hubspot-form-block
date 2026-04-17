@@ -9,6 +9,28 @@ if ( empty( $portal_id ) || empty( $form_id ) ) {
 	return;
 }
 
+// If no global portal ID is set, the main plugin won't have enqueued the HubSpot
+// scripts — enqueue them here using the block-level portal ID as a fallback.
+if ( empty( get_option( 'hubspot_embed_portal_id' ) ) ) {
+	wp_enqueue_script(
+		"hs-forms-{$portal_id}",
+		sprintf( 'https://js-%s.hsforms.net/forms/embed/developer/%s.js', $region, $portal_id ),
+		[ 'hubspot-form-view-script' ],
+		null,
+		[ 'strategy' => 'async' ]
+	);
+	wp_enqueue_script(
+		"hs-script-loader-{$portal_id}",
+		sprintf( 'https://js-%s.hs-scripts.com/%s.js', $region, $portal_id ),
+		[],
+		null,
+		[
+			'strategy'  => 'async',
+			'in_footer' => true,
+		]
+	);
+}
+
 // Remove empty value attributes.
 $attributes = array_filter( $attributes );
 
