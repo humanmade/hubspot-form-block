@@ -6,6 +6,7 @@ A WordPress block plugin that embeds HubSpot Forms v4 directly in page content. 
 
 - **HubSpot Forms v4 API** — uses the modern developer embed API
 - **Inline success message** — add any WordPress blocks as the post-submission message; shown in place of the form after submission
+- **Gated content** — optionally remember submissions in the browser (per page URL) and show the success content immediately on return visits, hiding the form permanently; supports a "First Submission Message" block for content only shown at the moment of first submission
 - **Global settings** — set Portal ID and region site-wide; override per block instance
 - **Google Tag Manager** — fires a configurable dataLayer event on submission (default: `hubspot_form_submit`)
 - **Deferred script loading** — HubSpot tracking JS loaded asynchronously in the footer
@@ -24,6 +25,7 @@ A WordPress block plugin that embeds HubSpot Forms v4 directly in page content. 
 | Submit button text | Override the form's submit button label. |
 | GTM event name | dataLayer event name pushed on submission. Defaults to `hubspot_form_submit`. |
 | Success message (inner blocks) | WordPress blocks shown in place of the form after successful submission. Not shown if a redirect URL is set. |
+| Enable gated content | When on, the browser remembers that this form has been submitted on this page (stored in `localStorage`). Returning visitors see the success message immediately instead of the form. Use the "Insert First Submission Message" button to add a block whose content is only shown at the moment of the first submission — stripped on subsequent visits. Disabled when a redirect URL is set. |
 
 ## Global settings
 
@@ -76,6 +78,8 @@ hubspot-form-block.php  # Plugin entry: block registration, script enqueue, sett
 **Config injection:** Each form instance gets a unique target ID (`hubspot-form-{formId}-{n}`). A `<script>` block writes `window.hsForms[target] = {...config}` so `view.js` can pick it up when HubSpot fires `hs-form-event:on-ready`.
 
 **Success message:** When inner blocks are present and no redirect URL is set, `render.php` emits a `<template id="{target}-inline-message">` containing the server-rendered block HTML. On `hs-form-event:on-submission:success`, `view.js` clones the template content into the form container, replacing the form with the success message.
+
+**Gated content (`persistSuccess`):** When enabled, `view.js` writes the current `window.location.pathname` into a `localStorage` entry keyed `hs-form-submitted:{formId}` (value is a JSON array of paths, so the same form on different URLs is tracked independently). A synchronous inline `<script>` emitted by `render.php` checks this array on page load and pre-swaps the container before paint if the current path is present, preventing HubSpot from rendering the form at all. Any inner `core/group` block with class `is-hubspot-form-first-submission` (the "First Submission Message" variation) is stripped from the clone during pre-swap but preserved for the fresh-submission path.
 
 ## Release workflow
 

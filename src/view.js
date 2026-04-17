@@ -1,4 +1,4 @@
-/* global HubSpotFormsV4, dataLayer */
+/* global HubSpotFormsV4, dataLayer, localStorage */
 
 window.addEventListener( 'hs-form-event:on-ready', ( event ) => {
 	window.hsForms = window.hsForms || {};
@@ -7,6 +7,11 @@ window.addEventListener( 'hs-form-event:on-ready', ( event ) => {
 	const config = window.hsForms[ instanceId ];
 
 	if ( ! config ) {
+		return;
+	}
+
+	const element = document.getElementById( instanceId );
+	if ( element?.dataset.hsFormSubmitted === '1' ) {
 		return;
 	}
 
@@ -52,5 +57,20 @@ window.addEventListener( 'hs-form-event:on-submission:success', ( event ) => {
 	if ( template && template.content ) {
 		const element = document.getElementById( instanceId );
 		element.replaceChildren( template.content.cloneNode( true ) );
+	}
+
+	if ( config.persistSuccess && config.storageKey ) {
+		try {
+			const paths = JSON.parse(
+				localStorage.getItem( config.storageKey ) || '[]'
+			);
+			if ( ! paths.includes( window.location.pathname ) ) {
+				paths.push( window.location.pathname );
+				localStorage.setItem(
+					config.storageKey,
+					JSON.stringify( paths )
+				);
+			}
+		} catch ( e ) {}
 	}
 } );
