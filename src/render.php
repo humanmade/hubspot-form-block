@@ -42,6 +42,11 @@ foreach ( $optional_config as $key => $callback ) {
 	}
 }
 
+if ( ! empty( $attributes['persistSuccess'] ) && empty( $config['redirectUrl'] ) ) {
+	$config['persistSuccess'] = true;
+	$config['storageKey']     = 'hs-form-submitted:' . $form_id;
+}
+
 // Add inline message if inner blocks present.
 $has_inline_message = (
 	! isset( $config['redirectUrl'] ) &&
@@ -81,3 +86,29 @@ $wrapper_attributes = [
 		<p><?php esc_html_e( 'This form may not be visible due to adblockers, or JavaScript not being enabled.', 'hubspot-form-block' ); ?></p>
 	</noscript>
 </div>
+<?php if ( $has_inline_message && ! empty( $attributes['persistSuccess'] ) ) : ?>
+<script type="text/javascript">
+	( function () {
+		try {
+			var cfg = window.hsForms && window.hsForms[ '<?php echo esc_js( $target ); ?>' ];
+			if ( ! cfg || ! cfg.persistSuccess || ! cfg.storageKey ) {
+				return;
+			}
+			if ( localStorage.getItem( cfg.storageKey ) !== '1' ) {
+				return;
+			}
+			var tmpl = document.getElementById( '<?php echo esc_js( $target ); ?>-inline-message' );
+			var el   = document.getElementById( '<?php echo esc_js( $target ); ?>' );
+			if ( ! tmpl || ! el ) {
+				return;
+			}
+			var frag = tmpl.content.cloneNode( true );
+			frag.querySelectorAll( '.is-hubspot-form-first-submission' ).forEach( function ( n ) {
+				n.remove();
+			} );
+			el.replaceChildren( frag );
+			el.dataset.hsFormSubmitted = '1';
+		} catch ( e ) {}
+	} )();
+</script>
+<?php endif; ?>

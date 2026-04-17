@@ -1,4 +1,4 @@
-import { useState } from '@wordpress/element';
+import { useEffect, useState } from '@wordpress/element';
 import { __ } from '@wordpress/i18n';
 import {
 	InspectorControls,
@@ -6,10 +6,15 @@ import {
 	useInnerBlocksProps,
 } from '@wordpress/block-editor';
 import {
+	registerBlockVariation,
+	unregisterBlockVariation,
+} from '@wordpress/blocks';
+import {
 	Button,
 	PanelBody,
 	SelectControl,
 	TextControl,
+	ToggleControl,
 } from '@wordpress/components';
 import { useDispatch, useSelect } from '@wordpress/data';
 import './editor.scss';
@@ -21,11 +26,12 @@ import './editor.scss';
  * @param {Object}   root0               - Block props object
  * @param {Object}   root0.attributes    - Block attributes
  * @param {Function} root0.setAttributes - Function to set block attributes
+ * @param {string}   root0.clientId      - Block client ID
  * @see https://developer.wordpress.org/block-editor/reference-guides/block-api/block-edit-save/#edit
  *
  * @return {JSX.Element} Element to render.
  */
-export default function Edit( { attributes, setAttributes } ) {
+export default function Edit( { attributes, setAttributes, clientId } ) {
 	const { ...blockProps } = useBlockProps();
 	const { children, ...innerBlocksProps } = useInnerBlocksProps( blockProps, {
 		template: [
@@ -41,10 +47,53 @@ export default function Edit( { attributes, setAttributes } ) {
 		],
 	} );
 
-	const { portalId, region, formId, redirectUrl, submitText, gtmEventName } =
-		attributes;
+	const {
+		portalId,
+		region,
+		formId,
+		redirectUrl,
+		submitText,
+		gtmEventName,
+		persistSuccess,
+	} = attributes;
 
 	const [ isGlobalChanged, setIsGlobalChanged ] = useState( false );
+
+	const isActiveContext = useSelect(
+		( select ) => {
+			const { getSelectedBlockClientId, hasSelectedInnerBlock } =
+				select( 'core/block-editor' );
+			const selectedId = getSelectedBlockClientId();
+			return (
+				selectedId === clientId ||
+				hasSelectedInnerBlock( clientId, true )
+			);
+		},
+		[ clientId ]
+	);
+
+	useEffect( () => {
+		if ( ! isActiveContext || ! persistSuccess ) {
+			return;
+		}
+		registerBlockVariation( 'core/group', {
+			name: 'hubspot-form-first-submission',
+			title: __( 'First Submission Message', 'hubspot-form-block' ),
+			description: __(
+				'Content shown only after the first successful submission on this page load.',
+				'hubspot-form-block'
+			),
+			attributes: { className: 'is-hubspot-form-first-submission' },
+			isActive: ( attrs ) =>
+				attrs.className?.includes( 'is-hubspot-form-first-submission' ),
+			scope: [ 'inserter' ],
+		} );
+		return () =>
+			unregisterBlockVariation(
+				'core/group',
+				'hubspot-form-first-submission'
+			);
+	}, [ isActiveContext, persistSuccess ] );
 
 	const {
 		canSetPortalId,
@@ -160,6 +209,21 @@ export default function Edit( { attributes, setAttributes } ) {
 						onChange={ ( newGtmEventName ) =>
 							setAttributes( { gtmEventName: newGtmEventName } )
 						}
+					/>
+					<ToggleControl
+						label={ __(
+							'Only show success message on first submission',
+							'hubspot-form-block'
+						) }
+						help={ __(
+							'Remember submissions in this browser. Insert a "First Submission Message" group for content that only shows once.',
+							'hubspot-form-block'
+						) }
+						checked={ persistSuccess }
+						onChange={ ( value ) =>
+							setAttributes( { persistSuccess: value } )
+						}
+						disabled={ !! redirectUrl }
 					/>
 				</PanelBody>
 			</InspectorControls>
