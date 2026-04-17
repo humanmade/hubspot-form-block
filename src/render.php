@@ -109,7 +109,10 @@ $wrapper_attributes = [
 				n.remove();
 			} );
 			el.replaceChildren( frag );
-			el.dataset.hsFormSubmitted = '1';
+			el.removeAttribute( 'data-form-id' );
+			el.removeAttribute( 'data-portal-id' );
+			el.removeAttribute( 'data-region' );
+			el.classList.remove( 'hs-form-html' );
 		} catch ( e ) {}
 	} )();
 </script>

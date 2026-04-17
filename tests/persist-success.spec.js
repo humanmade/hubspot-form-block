@@ -326,16 +326,25 @@ test.describe( 'HubSpot Form — persist success', () => {
 		await presetFormSubmittedFlag( page, FORM_ID );
 		await page.goto( `/?p=${ postId }` );
 
-		const container = page.locator( '.hs-form-html' );
-		await expect( container ).toBeAttached();
-		const instanceId = await container.getAttribute( 'id' );
+		// The container element keeps its id even after the pre-swap strips
+		// HubSpot's data attributes, so look it up by id via the template.
+		const instanceId = await page.evaluate( () => {
+			const tmpl = document.querySelector(
+				'template[id$="-inline-message"]'
+			);
+			return tmpl ? tmpl.id.replace( '-inline-message', '' ) : null;
+		} );
 
-		// The success paragraph should be visible (pre-swapped).
-		await expect(
-			page.locator( `#${ instanceId } p` ).filter( {
-				hasText: 'Thank you!',
-			} )
-		).toBeAttached();
+		// The success paragraph should be present immediately after pre-swap.
+		const successParagraph = page.locator( `#${ instanceId } p` ).filter( {
+			hasText: 'Thank you!',
+		} );
+		await expect( successParagraph ).toBeAttached();
+
+		// Wait 5 seconds to confirm the HubSpot SDK has not overwritten the
+		// pre-swapped content by re-rendering the form into the container.
+		await page.waitForTimeout( 5000 );
+		await expect( successParagraph ).toBeAttached();
 
 		// The first-submission group should have been stripped.
 		await expect(
