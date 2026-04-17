@@ -34,6 +34,10 @@
     },
     "gtmEventName": {
       "type": "string"
+    },
+    "persistSuccess": {
+      "type": "boolean",
+      "default": false
     }
   },
   "description": "Hubspot form embed block with configuration options",
