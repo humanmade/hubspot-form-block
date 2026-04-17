@@ -257,16 +257,26 @@ test.describe( 'HubSpot Form — persist success', () => {
 			page.locator( `#${ instanceId } .is-hubspot-form-first-submission` )
 		).toBeAttached();
 
-		// The localStorage flag should be set for this URL.
-		const flag = await page.evaluate(
-			( formId ) =>
-				// eslint-disable-next-line no-undef
-				localStorage.getItem(
-					`hs-form-submitted:${ formId }:${ window.location.pathname }`
-				),
-			FORM_ID
-		);
-		expect( flag ).toBe( '1' );
+		// The localStorage entry should be an array containing the current pathname.
+		const { stored, pathname } = await page.evaluate( ( formId ) => {
+			try {
+				return {
+					// eslint-disable-next-line no-undef
+					stored: JSON.parse(
+						// eslint-disable-next-line no-undef
+						localStorage.getItem(
+							`hs-form-submitted:${ formId }`
+						) || '[]'
+					),
+					// eslint-disable-next-line no-undef
+					pathname: window.location.pathname,
+				};
+			} catch ( e ) {
+				return { stored: [], pathname: '' };
+			}
+		}, FORM_ID );
+		expect( Array.isArray( stored ) ).toBe( true );
+		expect( stored ).toContain( pathname );
 	} );
 
 	test( 'should pre-swap the container on repeat visit, stripping the first-submission group', async ( {

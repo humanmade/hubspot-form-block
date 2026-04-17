@@ -48,8 +48,8 @@ async function presetFormSubmittedFlag( page, formId ) {
 	await page.addInitScript( ( fId ) => {
 		// eslint-disable-next-line no-undef
 		localStorage.setItem(
-			`hs-form-submitted:${ fId }:${ window.location.pathname }`,
-			'1'
+			`hs-form-submitted:${ fId }`,
+			JSON.stringify( [ window.location.pathname ] )
 		);
 	}, formId );
 }

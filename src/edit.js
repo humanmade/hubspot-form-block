@@ -6,6 +6,7 @@ import {
 	useInnerBlocksProps,
 } from '@wordpress/block-editor';
 import {
+	createBlock,
 	registerBlockVariation,
 	unregisterBlockVariation,
 } from '@wordpress/blocks';
@@ -109,6 +110,7 @@ export default function Edit( { attributes, setAttributes, clientId } ) {
 		};
 	} );
 
+	const { insertBlock } = useDispatch( 'core/block-editor' );
 	const { saveSite } = useDispatch( 'core' );
 	const updateDefaults = ( newPortalId, newRegion ) =>
 		saveSite( {
@@ -212,11 +214,11 @@ export default function Edit( { attributes, setAttributes, clientId } ) {
 					/>
 					<ToggleControl
 						label={ __(
-							'Only show success message on first submission',
+							'Enable gated content',
 							'hubspot-form-block'
 						) }
 						help={ __(
-							'Remember submissions in this browser. Insert a "First Submission Message" group for content that only shows once.',
+							'Remembers submissions in this browser per page. Use the "First Submission Message" block inside the success message area for content only shown immediately after submitting.',
 							'hubspot-form-block'
 						) }
 						checked={ persistSuccess }
@@ -264,11 +266,47 @@ export default function Edit( { attributes, setAttributes, clientId } ) {
 			) }
 			<div className="wp-hubspot-form-block__inline-message-wrapper">
 				<p className="wp-hubspot-form-block__inline-message-label">
-					{ __(
-						'Success message — shown in place of the form after submission',
-						'hubspot-form-block'
-					) }
+					{ persistSuccess
+						? __(
+								'Gated content — shown in place of the form after submission. Returning visitors see everything except the "First Submission Message" block.',
+								'hubspot-form-block'
+						  )
+						: __(
+								'Success message — shown in place of the form after submission',
+								'hubspot-form-block'
+						  ) }
 				</p>
+				{ persistSuccess && (
+					<Button
+						variant="secondary"
+						onClick={ () => {
+							insertBlock(
+								createBlock(
+									'core/group',
+									{
+										className:
+											'is-hubspot-form-first-submission',
+									},
+									[
+										createBlock( 'core/paragraph', {
+											content: __(
+												'Success!',
+												'hubspot-form-block'
+											),
+										} ),
+									]
+								),
+								undefined,
+								clientId
+							);
+						} }
+					>
+						{ __(
+							'Insert First Submission Message',
+							'hubspot-form-block'
+						) }
+					</Button>
+				) }
 				<div className="wp-hubspot-form-block__inline-message">
 					{ children }
 				</div>
