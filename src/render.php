@@ -94,7 +94,8 @@ $wrapper_attributes = [
 			if ( ! cfg || ! cfg.persistSuccess || ! cfg.storageKey ) {
 				return;
 			}
-			if ( localStorage.getItem( cfg.storageKey ) !== '1' ) {
+			var key = cfg.storageKey + ':' + window.location.pathname;
+			if ( localStorage.getItem( key ) !== '1' ) {
 				return;
 			}
 			var tmpl = document.getElementById( '<?php echo esc_js( $target ); ?>-inline-message' );

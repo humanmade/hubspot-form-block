@@ -61,7 +61,10 @@ window.addEventListener( 'hs-form-event:on-submission:success', ( event ) => {
 
 	if ( config.persistSuccess && config.storageKey ) {
 		try {
-			localStorage.setItem( config.storageKey, '1' );
+			localStorage.setItem(
+				config.storageKey + ':' + window.location.pathname,
+				'1'
+			);
 		} catch ( e ) {}
 	}
 } );

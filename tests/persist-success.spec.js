@@ -257,11 +257,13 @@ test.describe( 'HubSpot Form — persist success', () => {
 			page.locator( `#${ instanceId } .is-hubspot-form-first-submission` )
 		).toBeAttached();
 
-		// The localStorage flag should be set.
+		// The localStorage flag should be set for this URL.
 		const flag = await page.evaluate(
 			( formId ) =>
 				// eslint-disable-next-line no-undef
-				localStorage.getItem( `hs-form-submitted:${ formId }` ),
+				localStorage.getItem(
+					`hs-form-submitted:${ formId }:${ window.location.pathname }`
+				),
 			FORM_ID
 		);
 		expect( flag ).toBe( '1' );

@@ -47,7 +47,10 @@ async function dispatchHubSpotSuccess( page, instanceId, formId ) {
 async function presetFormSubmittedFlag( page, formId ) {
 	await page.addInitScript( ( fId ) => {
 		// eslint-disable-next-line no-undef
-		localStorage.setItem( `hs-form-submitted:${ fId }`, '1' );
+		localStorage.setItem(
+			`hs-form-submitted:${ fId }:${ window.location.pathname }`,
+			'1'
+		);
 	}, formId );
 }
 
