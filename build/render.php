@@ -1,9 +1,12 @@
 <?php
 global $hubspot_form_block_instance_ids;
 
-$portal_id = $attributes['portalId'] ?: get_option( 'hubspot_embed_portal_id' );
-$region = $attributes['region'] ?: get_option( 'hubspot_embed_region', 'eu1' );
-$form_id = $attributes['formId'] ?: '';
+$portal_id        = $attributes['portalId'] ?: get_option( 'hubspot_embed_portal_id' );
+$region           = $attributes['region'] ?: get_option( 'hubspot_embed_region', 'eu1' );
+$form_id          = $attributes['formId'] ?: '';
+$business_unit_id = ! empty( $attributes['businessUnitId'] )
+	? absint( $attributes['businessUnitId'] )
+	: absint( get_option( 'hubspot_embed_business_unit_id' ) );
 
 if ( empty( $portal_id ) || empty( $form_id ) ) {
 	return;
@@ -19,9 +22,15 @@ if ( empty( get_option( 'hubspot_embed_portal_id' ) ) ) {
 		null,
 		[ 'strategy' => 'async' ]
 	);
+
+	$hs_script_url = sprintf( 'https://js-%s.hs-scripts.com/%s.js', $region, $portal_id );
+	if ( ! empty( $business_unit_id ) ) {
+		$hs_script_url = add_query_arg( 'businessUnitId', $business_unit_id, $hs_script_url );
+	}
+
 	wp_enqueue_script(
 		"hs-script-loader-{$portal_id}",
-		sprintf( 'https://js-%s.hs-scripts.com/%s.js', $region, $portal_id ),
+		$hs_script_url,
 		[],
 		null,
 		[

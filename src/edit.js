@@ -56,6 +56,7 @@ export default function Edit( { attributes, setAttributes, clientId } ) {
 		submitText,
 		gtmEventName,
 		persistSuccess,
+		businessUnitId,
 	} = attributes;
 
 	const [ isGlobalChanged, setIsGlobalChanged ] = useState( false );
@@ -100,6 +101,7 @@ export default function Edit( { attributes, setAttributes, clientId } ) {
 		canSetPortalId,
 		defaultPortalId = '',
 		defaultRegion,
+		defaultBusinessUnitId,
 	} = useSelect( ( select ) => {
 		const settings = select( 'core' ).getSite();
 
@@ -107,15 +109,18 @@ export default function Edit( { attributes, setAttributes, clientId } ) {
 			canSetPortalId: select( 'core' ).canUser( 'update', 'settings' ),
 			defaultPortalId: settings?.hubspot_embed_portal_id || '',
 			defaultRegion: settings?.hubspot_embed_region || 'eu1',
+			defaultBusinessUnitId:
+				settings?.hubspot_embed_business_unit_id || '',
 		};
 	} );
 
 	const { insertBlock } = useDispatch( 'core/block-editor' );
 	const { saveSite } = useDispatch( 'core' );
-	const updateDefaults = ( newPortalId, newRegion ) =>
+	const updateDefaults = ( newPortalId, newRegion, newBusinessUnitId ) =>
 		saveSite( {
 			hubspot_embed_portal_id: newPortalId,
 			hubspot_embed_region: newRegion,
+			hubspot_embed_business_unit_id: newBusinessUnitId || 0,
 		} );
 
 	return (
@@ -127,13 +132,28 @@ export default function Edit( { attributes, setAttributes, clientId } ) {
 				>
 					<TextControl
 						label={ __( 'Portal ID', 'hubspot-form-block' ) }
-						value={ portalId }
-						placeholder={ defaultPortalId }
-						onChange={ ( newPortalId ) => {
-							setAttributes( { portalId: newPortalId } );
+						value={ portalId ? String( portalId ) : '' }
+						placeholder={ String( defaultPortalId ) }
+						onChange={ ( value ) => {
+							const parsed = parseInt( value, 10 );
+							setAttributes( {
+								portalId: isNaN( parsed ) ? null : parsed,
+							} );
 							setIsGlobalChanged( true );
 						} }
 						required={ ! defaultPortalId }
+					/>
+					<TextControl
+						label={ __( 'Business Unit ID', 'hubspot-form-block' ) }
+						value={ businessUnitId ? String( businessUnitId ) : '' }
+						placeholder={ String( defaultBusinessUnitId ) }
+						onChange={ ( value ) => {
+							const parsed = parseInt( value, 10 );
+							setAttributes( {
+								businessUnitId: isNaN( parsed ) ? null : parsed,
+							} );
+							setIsGlobalChanged( true );
+						} }
 					/>
 					<SelectControl
 						label={ __( 'Region', 'hubspot-form-block' ) }
@@ -161,8 +181,15 @@ export default function Edit( { attributes, setAttributes, clientId } ) {
 						<Button
 							variant="secondary"
 							onClick={ () => {
-								setAttributes( { portalId: '' } );
-								updateDefaults( portalId, region );
+								setAttributes( {
+									portalId: null,
+									businessUnitId: null,
+								} );
+								updateDefaults(
+									portalId,
+									region,
+									businessUnitId
+								);
 								setIsGlobalChanged( false );
 							} }
 						>

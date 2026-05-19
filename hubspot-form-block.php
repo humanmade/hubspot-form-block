@@ -54,11 +54,17 @@ function enqueue_scripts() {
 		return;
 	}
 
-	$region = get_option( 'hubspot_embed_region', 'eu1' );
+	$region           = get_option( 'hubspot_embed_region', 'eu1' );
+	$business_unit_id = absint( get_option( 'hubspot_embed_business_unit_id' ) );
+	$url              = sprintf( 'https://js-%s.hs-scripts.com/%s.js', $region, $portal_id );
+
+	if ( ! empty( $business_unit_id ) ) {
+		$url = add_query_arg( 'businessUnitId', $business_unit_id, $url );
+	}
 
 	wp_enqueue_script(
 		'hs-script-loader',
-		sprintf( 'https://js-%s.hs-scripts.com/%s.js', $region, $portal_id ),
+		$url,
 		[],
 		null,
 		[
@@ -93,6 +99,15 @@ function rest_api() {
 			},
 			'show_in_rest' => true,
 			'default' => 'eu1',
+		]
+	);
+	register_setting(
+		'hubspot_embed',
+		'hubspot_embed_business_unit_id',
+		[
+			'type' => 'integer',
+			'sanitize_callback' => 'absint',
+			'show_in_rest' => true,
 		]
 	);
 }
