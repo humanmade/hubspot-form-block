@@ -78,18 +78,31 @@ if ( ! empty( $attributes['persistSuccess'] ) && empty( $config['redirectUrl'] )
 	$config['storageKey']     = 'hs-form-submitted:' . $form_id;
 }
 
-// Add inline message if inner blocks present.
+// Detect inline (gated) message inner blocks. The content itself is NOT
+// emitted into the page — it is fetched from the unlock REST endpoint after a
+// submission so it can't be read from the page source without submitting.
 $has_inline_message = (
 	! isset( $config['redirectUrl'] ) &&
 	! empty( $block->parsed_block['innerBlocks'] ) &&
 	trim( $block->parsed_block['innerBlocks'][0]['innerHTML'] ) !== '<p></p>'
 );
 if ( $has_inline_message ) {
-	$inline_message = new WP_HTML_Tag_Processor( $content );
-	$inline_message->next_tag( 'div' );
-	$inline_message->remove_class( 'wp-block-hubspot-form' );
-	$inline_message->add_class( 'wp-block-hubspot-form__inline-message' );
-	$inline_message_html = (string) $inline_message;
+	$config['gated']    = true;
+	$config['postId']   = $block->context['postId'] ?? get_the_ID();
+	$config['formId']   = $form_id;
+	$config['instance'] = $instance_id;
+	$config['restUrl']  = rest_url( 'hubspot-form-block/v1/unlock' );
+
+	/**
+	 * Filter the message shown when a submission succeeds but the gated content
+	 * can't be verified/retrieved in time.
+	 *
+	 * @param string $message Pending message text.
+	 */
+	$config['pendingMessage'] = (string) apply_filters(
+		'hubspot_form_block_pending_message',
+		__( 'Thank you! Your content will be available shortly — please check your email.', 'hubspot-form-block' )
+	);
 }
 
 // Google Tag Manager event.
@@ -108,9 +121,6 @@ $wrapper_attributes = [
 	window.hsForms = window.hsForms || {};
 	window.hsForms['<?php echo esc_js( $target ); ?>'] = <?php echo wp_json_encode( $config ); ?>;
 </script>
-<?php if ( $has_inline_message ) : ?>
-<template id="<?php echo esc_attr( $target ); ?>-inline-message"><?php echo $inline_message_html; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- server-rendered trusted block content ?></template>
-<?php endif; ?>
 <div <?php echo get_block_wrapper_attributes( $wrapper_attributes ); ?>>
 	<div class="wp-block-hubspot-form__loading"></div>
 	<noscript>
@@ -119,31 +129,34 @@ $wrapper_attributes = [
 </div>
 <?php if ( $has_inline_message && ! empty( $attributes['persistSuccess'] ) ) : ?>
 <script type="text/javascript">
+	// Returning-visitor no-flash hide: if this page was previously unlocked,
+	// hide the form container immediately. view.js then re-fetches the gated
+	// content from the unlock endpoint using the stored token. No content is
+	// exposed here — this only toggles a CSS class.
 	( function () {
 		try {
 			var cfg = window.hsForms && window.hsForms[ '<?php echo esc_js( $target ); ?>' ];
 			if ( ! cfg || ! cfg.persistSuccess || ! cfg.storageKey ) {
 				return;
 			}
-			var paths = [];
-			try { paths = JSON.parse( localStorage.getItem( cfg.storageKey ) || '[]' ); } catch ( e ) {}
-			if ( ! Array.isArray( paths ) || ! paths.includes( window.location.pathname ) ) {
+			var entries = [];
+			try { entries = JSON.parse( localStorage.getItem( cfg.storageKey ) || '[]' ); } catch ( e ) {}
+			if ( ! Array.isArray( entries ) ) {
 				return;
 			}
-			var tmpl = document.getElementById( '<?php echo esc_js( $target ); ?>-inline-message' );
-			var el   = document.getElementById( '<?php echo esc_js( $target ); ?>' );
-			if ( ! tmpl || ! el ) {
-				return;
-			}
-			var frag = tmpl.content.cloneNode( true );
-			frag.querySelectorAll( '.is-hubspot-form-first-submission' ).forEach( function ( n ) {
-				n.remove();
+			var hit = entries.some( function ( entry ) {
+				if ( typeof entry === 'string' ) {
+					return entry === window.location.pathname;
+				}
+				return entry && entry.path === window.location.pathname;
 			} );
-			el.replaceChildren( frag );
-			el.removeAttribute( 'data-form-id' );
-			el.removeAttribute( 'data-portal-id' );
-			el.removeAttribute( 'data-region' );
-			el.classList.remove( 'hs-form-html' );
+			if ( ! hit ) {
+				return;
+			}
+			var el = document.getElementById( '<?php echo esc_js( $target ); ?>' );
+			if ( el ) {
+				el.classList.add( 'is-unlocking' );
+			}
 		} catch ( e ) {}
 	} )();
 </script>

@@ -58,6 +58,12 @@ test.describe( 'HubSpot Form — frontend render', () => {
 				region: 'na1',
 				formId: FORM_ID,
 			},
+			innerBlocks: [
+				{
+					name: 'core/paragraph',
+					attributes: { content: 'Thank you!' },
+				},
+			],
 		} );
 
 		const postId = await editor.publishPost();
@@ -76,5 +82,13 @@ test.describe( 'HubSpot Form — frontend render', () => {
 
 		expect( config ).toBeTruthy();
 		expect( config.submitButtonClass ).toContain( 'hs-button' );
+
+		// Gated-content config keys used by the unlock endpoint.
+		expect( config.gated ).toBe( true );
+		expect( config.postId ).toBe( postId );
+		expect( config.formId ).toBe( FORM_ID );
+		expect( config.instance ).toBe( 1 );
+		expect( config.restUrl ).toContain( 'hubspot-form-block/v1/unlock' );
+		expect( typeof config.pendingMessage ).toBe( 'string' );
 	} );
 } );

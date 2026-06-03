@@ -3,11 +3,13 @@
  */
 const { test, expect } = require( '@wordpress/e2e-test-utils-playwright' );
 
+const { dispatchHubSpotSuccess, isAbsentFromSource } = require( './helpers' );
+
 const PORTAL_ID = '148262752';
 const FORM_ID = 'ec0707d2-b7f5-47c5-bfef-76eb7e8f837e';
 
-test.describe( 'HubSpot Form — inline success message', () => {
-	test( 'should emit a <template> element when inner blocks are present', async ( {
+test.describe( 'HubSpot Form — gated success message', () => {
+	test( 'does not emit gated content into the page source, but injects it after submission', async ( {
 		admin,
 		editor,
 		page,
@@ -27,7 +29,7 @@ test.describe( 'HubSpot Form — inline success message', () => {
 			innerBlocks: [
 				{
 					name: 'core/paragraph',
-					attributes: { content: 'Thank you for signing up!' },
+					attributes: { content: 'Secret gated content!' },
 				},
 			],
 		} );
@@ -37,17 +39,37 @@ test.describe( 'HubSpot Form — inline success message', () => {
 
 		const container = page.locator( '.hs-form-html' );
 		await expect( container ).toBeAttached();
-
 		const instanceId = await container.getAttribute( 'id' );
 
-		// The <template> element is emitted server-side by render.php.
-		const template = page.locator(
-			`template#${ instanceId }-inline-message`
+		// The gated content must NOT be present in the page source, and the old
+		// <template> mechanism must be gone.
+		expect(
+			await isAbsentFromSource( page, 'Secret gated content!' )
+		).toBe( true );
+		await expect(
+			page.locator( `template#${ instanceId }-inline-message` )
+		).not.toBeAttached();
+
+		// The config should flag this instance as gated and carry the endpoint.
+		const config = await page.evaluate(
+			( id ) => window.hsForms?.[ id ],
+			instanceId
 		);
-		await expect( template ).toBeAttached();
+		expect( config.gated ).toBe( true );
+		expect( config.restUrl ).toContain( 'hubspot-form-block/v1/unlock' );
+
+		// After a successful submission the content is fetched and injected.
+		// (No token is configured in Playground, so the endpoint is best-effort.)
+		await dispatchHubSpotSuccess( page, instanceId, FORM_ID );
+
+		await expect(
+			page
+				.locator( `#${ instanceId } p` )
+				.filter( { hasText: 'Secret gated content!' } )
+		).toBeAttached();
 	} );
 
-	test( 'should include embed iframes inside the <template> without stripping', async ( {
+	test( 'preserves embed iframes in the fetched content', async ( {
 		admin,
 		editor,
 		page,
@@ -81,23 +103,17 @@ test.describe( 'HubSpot Form — inline success message', () => {
 
 		const container = page.locator( '.hs-form-html' );
 		await expect( container ).toBeAttached();
-
 		const instanceId = await container.getAttribute( 'id' );
 
-		// The template's content fragment should contain an iframe (YouTube embed).
-		// Previously DOMPurify stripped iframes; the <template> approach preserves them.
-		const hasIframe = await page.evaluate( ( id ) => {
-			const tmpl = document.getElementById( `${ id }-inline-message` );
-			if ( ! tmpl ) {
-				return false;
-			}
-			return tmpl.content.querySelector( 'iframe' ) !== null;
-		}, instanceId );
+		await dispatchHubSpotSuccess( page, instanceId, FORM_ID );
 
-		expect( hasIframe ).toBe( true );
+		// The fetched, injected content should contain the embed iframe.
+		await expect(
+			page.locator( `#${ instanceId } iframe` )
+		).toBeAttached();
 	} );
 
-	test( 'should not emit a <template> when no inner blocks are present', async ( {
+	test( 'does not flag the instance as gated when no inner blocks are present', async ( {
 		admin,
 		editor,
 		page,
@@ -121,11 +137,15 @@ test.describe( 'HubSpot Form — inline success message', () => {
 
 		const container = page.locator( '.hs-form-html' );
 		await expect( container ).toBeAttached();
-
 		const instanceId = await container.getAttribute( 'id' );
-		const template = page.locator(
-			`template#${ instanceId }-inline-message`
+
+		const config = await page.evaluate(
+			( id ) => window.hsForms?.[ id ],
+			instanceId
 		);
-		await expect( template ).not.toBeAttached();
+		expect( config.gated ).toBeUndefined();
+		await expect(
+			page.locator( `template#${ instanceId }-inline-message` )
+		).not.toBeAttached();
 	} );
 } );
