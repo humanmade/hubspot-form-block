@@ -314,12 +314,72 @@ function verify_hubspot_submission( string $token, string $form_id, string $emai
 }
 
 /**
+ * Best-effort resolution of the requesting client's IP address.
+ *
+ * REMOTE_ADDR alone is unreliable when the site sits behind a reverse proxy,
+ * load balancer or CDN (it then reports the proxy's address for everyone).
+ * This checks the common forwarded headers first, falling back to
+ * REMOTE_ADDR. Note that forwarded headers can be spoofed unless the site is
+ * actually behind a trusted proxy, so this is used only for rate limiting,
+ * never for access control. Hosts can pin the trusted header order via the
+ * `hubspot_form_block_client_ip_headers` filter or override the resolved
+ * value entirely via `hubspot_form_block_client_ip`.
+ *
+ * @return string The client IP, or an empty string when none can be resolved.
+ */
+function get_client_ip() : string {
+	/**
+	 * Filter the ordered list of $_SERVER keys consulted to resolve the client IP.
+	 *
+	 * Order matters: the first key that yields a valid IP wins. Restrict this
+	 * to headers your proxy actually sets to avoid trusting spoofable input.
+	 *
+	 * @param string[] $headers Ordered $_SERVER keys.
+	 */
+	$headers = (array) apply_filters(
+		'hubspot_form_block_client_ip_headers',
+		[
+			'HTTP_CF_CONNECTING_IP', // Cloudflare.
+			'HTTP_TRUE_CLIENT_IP',   // Akamai / Cloudflare Enterprise.
+			'HTTP_X_REAL_IP',        // Common nginx reverse proxy.
+			'HTTP_X_FORWARDED_FOR',  // Standard proxy chain (may be a list).
+			'REMOTE_ADDR',
+		]
+	);
+
+	$ip = '';
+	foreach ( $headers as $header ) {
+		if ( empty( $_SERVER[ $header ] ) ) {
+			continue;
+		}
+
+		$value = sanitize_text_field( wp_unslash( $_SERVER[ $header ] ) );
+
+		// X-Forwarded-For may be a comma-separated chain; the client is first.
+		foreach ( explode( ',', $value ) as $candidate ) {
+			$candidate = trim( $candidate );
+			if ( filter_var( $candidate, FILTER_VALIDATE_IP ) ) {
+				$ip = $candidate;
+				break 2;
+			}
+		}
+	}
+
+	/**
+	 * Filter the resolved client IP (e.g. to plug in a host-specific source).
+	 *
+	 * @param string $ip The resolved IP (may be empty).
+	 */
+	return (string) apply_filters( 'hubspot_form_block_client_ip', $ip );
+}
+
+/**
  * Simple per-IP rate limiter for the unlock endpoint.
  *
  * @return bool True when the current request should be rejected.
  */
 function unlock_is_rate_limited() : bool {
-	$ip = isset( $_SERVER['REMOTE_ADDR'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REMOTE_ADDR'] ) ) : '';
+	$ip = get_client_ip();
 	if ( '' === $ip ) {
 		return false;
 	}

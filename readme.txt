@@ -51,7 +51,7 @@ e.g.
 * Add: Gated success content is now fetched from a REST endpoint (`/hubspot-form-block/v1/unlock`) after submission instead of being embedded in the page — the content can no longer be read from the page source without submitting the form
 * Add: Strong gating mode — configure a HubSpot private app access token (`HUBSPOT_FORMS_PRIVATE_TOKEN` constant or `hubspot_form_block_private_token` filter) and the server verifies a real submission against HubSpot's Submissions API before releasing the content
 * Add: Best-effort mode (no token) keeps content out of the page source as a sensible default
-* Add: Signed, expiring unlock tokens so returning visitors with gated content enabled see it again without re-submitting; per-IP rate limiting and transient caching on the endpoint
+* Add: Signed, expiring unlock tokens so returning visitors with gated content enabled see it again without re-submitting; per-IP rate limiting (proxy/CDN-aware, checks forwarded headers with `hubspot_form_block_client_ip*` filters) and transient caching on the endpoint
 * Update: `view.js` fetches and injects the success message (polling with backoff while verification is pending) and shows a graceful pending message on failure
 * Remove: The server-rendered `<template>` success-message element and the localStorage pre-swap clone
 
