@@ -245,7 +245,7 @@ export default function Edit( { attributes, setAttributes, clientId } ) {
 							'hubspot-form-block'
 						) }
 						help={ __(
-							'Remembers submissions in this browser per page. Use the "First Submission Message" block inside the success message area for content only shown immediately after submitting.',
+							'Gated content is fetched from the server only after submission, not embedded in the page. Configure a HubSpot private app token to verify submissions server-side. Use the "First Submission Message" block for content only shown immediately after submitting.',
 							'hubspot-form-block'
 						) }
 						checked={ persistSuccess }

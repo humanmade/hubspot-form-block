@@ -16,6 +16,8 @@
 
 namespace HM\HubspotFormBlock;
 
+require_once __DIR__ . '/inc/inline-message.php';
+
 /**
  * Registers the block using the metadata loaded from the `block.json` file.
  * Behind the scenes, it registers also all assets so they can be enqueued
@@ -108,6 +110,18 @@ function rest_api() {
 			'type' => 'integer',
 			'sanitize_callback' => 'absint',
 			'show_in_rest' => true,
+		]
+	);
+	// HubSpot private app access token used to verify form submissions before
+	// releasing gated content. Intentionally NOT exposed via the REST API.
+	// Prefer defining the HUBSPOT_FORMS_PRIVATE_TOKEN constant in wp-config.php.
+	register_setting(
+		'hubspot_embed',
+		'hubspot_embed_private_app_token',
+		[
+			'type' => 'string',
+			'sanitize_callback' => 'sanitize_text_field',
+			'show_in_rest' => false,
 		]
 	);
 }
