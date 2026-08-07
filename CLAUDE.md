@@ -55,7 +55,7 @@ The `--webpack-copy-php` flag on `build`/`start` is required — it copies `rend
 ## Release workflow
 
 1. Push to `main` → `build-and-release.yml` automatically merges built `build/` into the `release` branch.
-2. Create a GitHub Release with a semver tag → `release.yml` replaces `__VERSION__` placeholder in `hubspot-form-block.php`, commits, retags, and uploads `hubspot-form-block.zip`.
+2. Manually run the `Version and Release` workflow (`release.yml`) via `workflow_dispatch`, passing the version number (e.g. `1.2.3`, no leading `v`) → it replaces the `__VERSION__` placeholder in `hubspot-form-block.php`, builds, creates the `v{version}` tag, and creates a GitHub Release with `hubspot-form-block.zip` attached. No retag/force-push — the tag is created fresh from the version-bumped build.
 
 ## Test credentials
 
