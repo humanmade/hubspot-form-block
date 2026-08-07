@@ -84,4 +84,4 @@ hubspot-form-block.php  # Plugin entry: block registration, script enqueue, sett
 ## Release workflow
 
 1. Push to `main` → `build-and-release.yml` automatically merges built `build/` into the `release` branch.
-2. Create a GitHub Release with a semver tag → `release.yml` replaces the `__VERSION__` placeholder in `hubspot-form-block.php`, commits, retags, and uploads `hubspot-form-block.zip`.
+2. Manually run the **Version and Release** workflow (`release.yml`) from the Actions tab (`workflow_dispatch`), entering the version number (e.g. `1.2.3`, without a leading `v`). It replaces the `__VERSION__` placeholder in `hubspot-form-block.php`, builds, creates the `v{version}` tag, and publishes a GitHub Release with `hubspot-form-block.zip` attached. The tag is created fresh from the version-bumped build — no retag or force-push.
