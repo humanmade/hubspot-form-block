@@ -3,9 +3,12 @@
  */
 const { test, expect } = require( '@wordpress/e2e-test-utils-playwright' );
 
+// 0 is the "unset" value for the ID options — the plugin treats it as empty and
+// the editor falls back to a blank placeholder. Writing null instead would fail
+// with rest_invalid_stored_value whenever the option already has a value.
 const EMPTY_GLOBALS = {
-	hubspot_embed_portal_id: null,
-	hubspot_embed_business_unit_id: null,
+	hubspot_embed_portal_id: 0,
+	hubspot_embed_business_unit_id: 0,
 	hubspot_embed_region: 'eu1',
 };
 
@@ -25,8 +28,7 @@ async function getGlobals( requestUtils ) {
 }
 
 /**
- * Writes the plugin's global settings via the REST API. A null value deletes
- * the underlying option.
+ * Writes the plugin's global settings via the REST API.
  *
  * @param {Object} requestUtils The e2e request utils fixture.
  * @param {Object} data         Settings to write.

@@ -123,9 +123,11 @@ export default function Edit( { attributes, setAttributes, clientId } ) {
 
 	// Build the settings payload from the fields the user actually filled in.
 	// An empty field means "inherit the global default shown as the
-	// placeholder", so it must not be sent: the settings REST endpoint deletes
-	// an option when it receives null, which would wipe a global the user never
-	// touched.
+	// placeholder", so it must not be sent. Sending every field unconditionally
+	// broke both ways: a blank ID goes over the wire as null, which the settings
+	// endpoint rejects with rest_invalid_stored_value once the option holds a
+	// value, aborting the entire save; and coercing a blank to 0 instead
+	// overwrote a stored global with an empty value.
 	const globalUpdates = {};
 	if ( changedGlobals.has( 'portalId' ) && portalId ) {
 		globalUpdates.hubspot_embed_portal_id = portalId;
