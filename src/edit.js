@@ -59,7 +59,11 @@ export default function Edit( { attributes, setAttributes, clientId } ) {
 		businessUnitId,
 	} = attributes;
 
-	const [ isGlobalChanged, setIsGlobalChanged ] = useState( false );
+	// Tracks which of the global settings the user has edited, so that saving
+	// promotes only those values and leaves the other globals untouched.
+	const [ changedGlobals, setChangedGlobals ] = useState( () => new Set() );
+	const markGlobalChanged = ( key ) =>
+		setChangedGlobals( ( changed ) => new Set( changed ).add( key ) );
 
 	const isActiveContext = useSelect(
 		( select ) => {
@@ -116,12 +120,23 @@ export default function Edit( { attributes, setAttributes, clientId } ) {
 
 	const { insertBlock } = useDispatch( 'core/block-editor' );
 	const { saveSite } = useDispatch( 'core' );
-	const updateDefaults = ( newPortalId, newRegion, newBusinessUnitId ) =>
-		saveSite( {
-			hubspot_embed_portal_id: newPortalId,
-			hubspot_embed_region: newRegion,
-			hubspot_embed_business_unit_id: newBusinessUnitId || 0,
-		} );
+
+	// Build the settings payload from the fields the user actually filled in.
+	// An empty field means "inherit the global default shown as the
+	// placeholder", so it must not be sent: the settings REST endpoint deletes
+	// an option when it receives null, which would wipe a global the user never
+	// touched.
+	const globalUpdates = {};
+	if ( changedGlobals.has( 'portalId' ) && portalId ) {
+		globalUpdates.hubspot_embed_portal_id = portalId;
+	}
+	if ( changedGlobals.has( 'businessUnitId' ) && businessUnitId ) {
+		globalUpdates.hubspot_embed_business_unit_id = businessUnitId;
+	}
+	if ( changedGlobals.has( 'region' ) && region ) {
+		globalUpdates.hubspot_embed_region = region;
+	}
+	const hasGlobalUpdates = Object.keys( globalUpdates ).length > 0;
 
 	return (
 		<div { ...innerBlocksProps }>
@@ -139,7 +154,7 @@ export default function Edit( { attributes, setAttributes, clientId } ) {
 							setAttributes( {
 								portalId: isNaN( parsed ) ? null : parsed,
 							} );
-							setIsGlobalChanged( true );
+							markGlobalChanged( 'portalId' );
 						} }
 						required={ ! defaultPortalId }
 					/>
@@ -152,7 +167,7 @@ export default function Edit( { attributes, setAttributes, clientId } ) {
 							setAttributes( {
 								businessUnitId: isNaN( parsed ) ? null : parsed,
 							} );
-							setIsGlobalChanged( true );
+							markGlobalChanged( 'businessUnitId' );
 						} }
 					/>
 					<SelectControl
@@ -174,23 +189,27 @@ export default function Edit( { attributes, setAttributes, clientId } ) {
 						defaultValue={ defaultRegion }
 						onChange={ ( newRegion ) => {
 							setAttributes( { region: newRegion } );
-							setIsGlobalChanged( true );
+							markGlobalChanged( 'region' );
 						} }
 					/>
-					{ canSetPortalId && isGlobalChanged && (
+					{ canSetPortalId && hasGlobalUpdates && (
 						<Button
 							variant="secondary"
 							onClick={ () => {
-								setAttributes( {
-									portalId: null,
-									businessUnitId: null,
-								} );
-								updateDefaults(
-									portalId,
-									region,
-									businessUnitId
-								);
-								setIsGlobalChanged( false );
+								// Clear only the block-level overrides that
+								// are being promoted to global defaults.
+								const clearedAttributes = {};
+								if ( globalUpdates.hubspot_embed_portal_id ) {
+									clearedAttributes.portalId = null;
+								}
+								if (
+									globalUpdates.hubspot_embed_business_unit_id
+								) {
+									clearedAttributes.businessUnitId = null;
+								}
+								setAttributes( clearedAttributes );
+								saveSite( globalUpdates );
+								setChangedGlobals( new Set() );
 							} }
 						>
 							{ __(
@@ -275,7 +294,7 @@ export default function Edit( { attributes, setAttributes, clientId } ) {
 				</svg>
 				{ __( 'Hubspot Form', 'hubspot-form-block' ) }
 			</h3>
-			{ ( ! defaultPortalId || ! formId ) && (
+			{ ( ! ( portalId || defaultPortalId ) || ! formId ) && (
 				<p>
 					{ __(
 						'Please enter a Portal ID and a Form ID in the sidebar block controls.',
@@ -283,7 +302,7 @@ export default function Edit( { attributes, setAttributes, clientId } ) {
 					) }
 				</p>
 			) }
-			{ defaultPortalId && formId && (
+			{ ( portalId || defaultPortalId ) && formId && (
 				<p>
 					{ __(
 						'Please preview your changes to see the form, it cannot be shown in the editor directly.',
