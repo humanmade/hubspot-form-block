@@ -57,6 +57,7 @@ export default function Edit( { attributes, setAttributes, clientId } ) {
 		gtmEventName,
 		persistSuccess,
 		businessUnitId,
+		legacyEmbed,
 	} = attributes;
 
 	// Tracks which of the global settings the user has edited, so that saving
@@ -258,6 +259,20 @@ export default function Edit( { attributes, setAttributes, clientId } ) {
 						value={ gtmEventName }
 						onChange={ ( newGtmEventName ) =>
 							setAttributes( { gtmEventName: newGtmEventName } )
+						}
+					/>
+					<ToggleControl
+						label={ __(
+							'Use the legacy form embed',
+							'hubspot-form-block'
+						) }
+						help={ __(
+							'For forms built in HubSpot’s older forms editor, which the current embed cannot load. Turn this on if the form area stays empty and the browser console reports "Form not found".',
+							'hubspot-form-block'
+						) }
+						checked={ legacyEmbed }
+						onChange={ ( value ) =>
+							setAttributes( { legacyEmbed: value } )
 						}
 					/>
 					<ToggleControl
