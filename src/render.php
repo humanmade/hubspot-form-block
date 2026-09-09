@@ -7,21 +7,36 @@ $form_id          = $attributes['formId'] ?: '';
 $business_unit_id = ! empty( $attributes['businessUnitId'] )
 	? absint( $attributes['businessUnitId'] )
 	: absint( get_option( 'hubspot_embed_business_unit_id' ) );
+$legacy_embed     = ! empty( $attributes['legacyEmbed'] );
 
 if ( empty( $portal_id ) || empty( $form_id ) ) {
 	return;
 }
 
-// If no global portal ID is set, the main plugin won't have enqueued the HubSpot
-// scripts — enqueue them here using the block-level portal ID as a fallback.
-if ( empty( get_option( 'hubspot_embed_portal_id' ) ) ) {
+// The legacy embed script is not registered globally, because whether a site
+// needs it depends on the individual form rather than on the portal.
+if ( $legacy_embed ) {
 	wp_enqueue_script(
-		"hs-forms-{$portal_id}",
-		sprintf( 'https://js-%s.hsforms.net/forms/embed/developer/%s.js', $region, $portal_id ),
+		"hs-forms-v2-{$region}",
+		sprintf( 'https://js-%s.hsforms.net/forms/embed/v2.js', $region ),
 		[ 'hubspot-form-view-script' ],
 		null,
 		[ 'strategy' => 'async' ]
 	);
+}
+
+// If no global portal ID is set, the main plugin won't have enqueued the HubSpot
+// scripts — enqueue them here using the block-level portal ID as a fallback.
+if ( empty( get_option( 'hubspot_embed_portal_id' ) ) ) {
+	if ( ! $legacy_embed ) {
+		wp_enqueue_script(
+			"hs-forms-{$portal_id}",
+			sprintf( 'https://js-%s.hsforms.net/forms/embed/developer/%s.js', $region, $portal_id ),
+			[ 'hubspot-form-view-script' ],
+			null,
+			[ 'strategy' => 'async' ]
+		);
+	}
 
 	$hs_script_url = sprintf( 'https://js-%s.hs-scripts.com/%s.js', $region, $portal_id );
 	if ( ! empty( $business_unit_id ) ) {
@@ -95,9 +110,18 @@ if ( $has_inline_message ) {
 // Google Tag Manager event.
 $config['gtmEventName'] = empty( $attributes['gtmEventName'] ) ? 'hubspot_form_submit' : $attributes['gtmEventName'];
 
+// The legacy embed builds the form from JavaScript rather than from the
+// container's data attributes, so view.js needs the same values in the config.
+if ( $legacy_embed ) {
+	$config['legacy']   = true;
+	$config['portalId'] = (string) $portal_id;
+	$config['formId']   = $form_id;
+	$config['region']   = $region;
+}
+
 $wrapper_attributes = [
 	'id' => $target,
-	'class' => 'hs-form-html',
+	'class' => $legacy_embed ? 'hs-form-legacy' : 'hs-form-html',
 	'data-region' => $region,
 	'data-form-id' => $form_id,
 	'data-portal-id' => $portal_id,
@@ -144,6 +168,8 @@ $wrapper_attributes = [
 			el.removeAttribute( 'data-portal-id' );
 			el.removeAttribute( 'data-region' );
 			el.classList.remove( 'hs-form-html' );
+			el.classList.remove( 'hs-form-legacy' );
+			delete cfg.legacy;
 		} catch ( e ) {}
 	} )();
 </script>
