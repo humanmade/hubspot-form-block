@@ -12,6 +12,15 @@ const PORTAL_ID = '148262752';
 const FORM_ID = 'ec0707d2-b7f5-47c5-bfef-76eb7e8f837e';
 
 test.describe( 'HubSpot Form — persist success', () => {
+	// These tests drive submission through a mocked event, so the real embed
+	// script is only a source of interference. When its request for the form
+	// definition fails it overwrites the container with its own fallback
+	// markup, which wipes out the content being asserted on.
+	test.beforeEach( async ( { page } ) => {
+		await page.route( '**/*.hsforms.net/**', ( route ) => route.abort() );
+		await page.route( '**/*.hsforms.com/**', ( route ) => route.abort() );
+	} );
+
 	test( 'should include persistSuccess and storageKey in injected config when enabled', async ( {
 		admin,
 		editor,
