@@ -19,15 +19,28 @@ function editorCanvas( page ) {
  * @param {string}                          formId     The HubSpot form id.
  */
 async function dispatchHubSpotSuccess( page, instanceId, formId ) {
+	// HubSpot's embed script replaces the container's contents once it has
+	// resolved the form, so a success dispatched before that lands gets wiped
+	// out again mid test. The script sets data-loaded when it is finished.
+	await page.waitForSelector( `#${ instanceId }[data-loaded]` );
+
 	await page.evaluate(
 		( [ id, fId ] ) => {
-			window.HubSpotFormsV4 = {
-				getFormFromEvent: () => ( {
-					getInstanceId: () => id,
-					getFormId: () => fId,
-					getConversionId: () => 'test-conversion-id',
-				} ),
-			};
+			// Once HubSpot's script has loaded it owns this global, and it
+			// defines it as read only, so a plain assignment silently does
+			// nothing and view.js ends up calling the real implementation
+			// with a synthetic event. The property is configurable, so
+			// defineProperty is the way to stand in for it.
+			Object.defineProperty( window, 'HubSpotFormsV4', {
+				configurable: true,
+				value: {
+					getFormFromEvent: () => ( {
+						getInstanceId: () => id,
+						getFormId: () => fId,
+						getConversionId: () => 'test-conversion-id',
+					} ),
+				},
+			} );
 			window.dataLayer = window.dataLayer || [];
 			window.dispatchEvent(
 				new Event( 'hs-form-event:on-submission:success' )
