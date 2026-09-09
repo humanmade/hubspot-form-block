@@ -54,8 +54,71 @@ async function presetFormSubmittedFlag( page, formId ) {
 	}, formId );
 }
 
+/**
+ * Stands in for HubSpot's legacy embed script.
+ *
+ * Blocks the real script, then installs an hbspt global and an hsFormsOnReady
+ * queue that runs callbacks straight away, which is how the real queue behaves
+ * once the script has loaded. Calls to forms.create are recorded on
+ * window.__hbsptCalls, and each one renders a minimal form into its target and
+ * fires onFormReady, so view.js sees the same shape it would in a browser.
+ *
+ * @param {import('@playwright/test').Page} page
+ */
+async function stubLegacyHubSpot( page ) {
+	await page.route( '**/*.hsforms.net/**', ( route ) => route.abort() );
+
+	await page.addInitScript( () => {
+		window.__hbsptCalls = [];
+
+		const queue = [];
+		queue.push = ( callback ) => {
+			callback();
+			return 0;
+		};
+		window.hsFormsOnReady = queue;
+
+		window.hbspt = {
+			forms: {
+				create: ( options ) => {
+					window.__hbsptCalls.push( options );
+
+					const target = document.querySelector( options.target );
+					if ( ! target ) {
+						return;
+					}
+
+					const form = document.createElement( 'form' );
+					const submit = document.createElement( 'input' );
+					submit.type = 'submit';
+					submit.value = 'Submit';
+					form.appendChild( submit );
+					target.replaceChildren( form );
+
+					options.onFormReady?.( {} );
+				},
+			},
+		};
+	} );
+}
+
+/**
+ * Fires the onFormSubmitted callback of the most recent legacy form.
+ *
+ * @param {import('@playwright/test').Page} page
+ */
+async function dispatchLegacySuccess( page ) {
+	await page.evaluate( () => {
+		window.dataLayer = window.dataLayer || [];
+		const options = window.__hbsptCalls[ window.__hbsptCalls.length - 1 ];
+		options.onFormSubmitted?.( {}, {} );
+	} );
+}
+
 module.exports = {
 	editorCanvas,
 	dispatchHubSpotSuccess,
 	presetFormSubmittedFlag,
+	stubLegacyHubSpot,
+	dispatchLegacySuccess,
 };
