@@ -68,70 +68,32 @@ async function presetFormSubmittedFlag( page, formId ) {
 }
 
 /**
- * Stands in for HubSpot's legacy embed script.
+ * Answers a legacy form submission in place of HubSpot.
  *
- * Blocks the real script, then installs an hbspt global and an hsFormsOnReady
- * queue that runs callbacks straight away, which is how the real queue behaves
- * once the script has loaded. Calls to forms.create are recorded on
- * window.__hbsptCalls, and each one renders a minimal form into its target and
- * fires onFormReady, so view.js sees the same shape it would in a browser.
- *
- * @param {import('@playwright/test').Page} page
- */
-async function stubLegacyHubSpot( page ) {
-	await page.route( '**/*.hsforms.net/**', ( route ) => route.abort() );
-
-	await page.addInitScript( () => {
-		window.__hbsptCalls = [];
-
-		const queue = [];
-		queue.push = ( callback ) => {
-			callback();
-			return 0;
-		};
-		window.hsFormsOnReady = queue;
-
-		window.hbspt = {
-			forms: {
-				create: ( options ) => {
-					window.__hbsptCalls.push( options );
-
-					const target = document.querySelector( options.target );
-					if ( ! target ) {
-						return;
-					}
-
-					const form = document.createElement( 'form' );
-					const submit = document.createElement( 'input' );
-					submit.type = 'submit';
-					submit.value = 'Submit';
-					form.appendChild( submit );
-					target.replaceChildren( form );
-
-					options.onFormReady?.( {} );
-				},
-			},
-		};
-	} );
-}
-
-/**
- * Fires the onFormSubmitted callback of the most recent legacy form.
+ * The legacy form posts into a hidden iframe, and HubSpot's reply is a page
+ * that tells the form it was accepted by posting a message from that iframe.
+ * Serving that page here lets the real embed run its own success path without
+ * a submission reaching the test account.
  *
  * @param {import('@playwright/test').Page} page
+ * @param {string}                          formId The HubSpot form id.
  */
-async function dispatchLegacySuccess( page ) {
-	await page.evaluate( () => {
-		window.dataLayer = window.dataLayer || [];
-		const options = window.__hbsptCalls[ window.__hbsptCalls.length - 1 ];
-		options.onFormSubmitted?.( {}, {} );
-	} );
+async function mockLegacySubmission( page, formId ) {
+	const message = JSON.stringify( { accepted: true, formGuid: formId } );
+
+	await page.route(
+		'**/submissions/v3/public/submit/formsnext/multipart/**',
+		( route ) =>
+			route.fulfill( {
+				contentType: 'text/html',
+				body: `<script>parent.postMessage( ${ message }, '*' );</script>`,
+			} )
+	);
 }
 
 module.exports = {
 	editorCanvas,
 	dispatchHubSpotSuccess,
 	presetFormSubmittedFlag,
-	stubLegacyHubSpot,
-	dispatchLegacySuccess,
+	mockLegacySubmission,
 };

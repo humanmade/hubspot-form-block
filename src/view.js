@@ -21,17 +21,18 @@ const setSubmitText = ( element, text ) => {
 /**
  * Applies the block's submit button settings once a form has rendered.
  *
- * @param {string} instanceId The form container id.
- * @param {Object} config     The config render.php wrote for this instance.
+ * @param {string}      instanceId The form container id.
+ * @param {Object}      config     The config render.php wrote for this instance.
+ * @param {HTMLElement} [form]     The form, when it is not inside the container.
  */
-const applySubmitButton = ( instanceId, config ) => {
+const applySubmitButton = ( instanceId, config, form ) => {
 	const element = document.getElementById( instanceId );
 	if ( element?.dataset.hsFormSubmitted === '1' ) {
 		return;
 	}
 
-	const submitButton = document.querySelector(
-		`#${ instanceId } [type="submit"]`
+	const submitButton = ( form || element )?.querySelector(
+		'[type="submit"]'
 	);
 	if ( ! submitButton ) {
 		return;
@@ -151,7 +152,15 @@ const createLegacyForms = () => {
 				formId: config.formId,
 				region: config.region,
 				target: `#${ instanceId }`,
-				onFormReady: () => applySubmitButton( instanceId, config ),
+				// The legacy form renders inside an iframe, so its submit
+				// control is only reachable through the form HubSpot passes
+				// here, which it wraps in jQuery when the page has jQuery.
+				onFormReady: ( form ) =>
+					applySubmitButton(
+						instanceId,
+						config,
+						form?.jquery ? form.get( 0 ) : form
+					),
 				onFormSubmitted: () =>
 					handleSuccess( instanceId, config, {
 						formId: config.formId,

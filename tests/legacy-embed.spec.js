@@ -2,10 +2,12 @@
  * WordPress dependencies
  */
 const { test, expect } = require( '@wordpress/e2e-test-utils-playwright' );
-const { stubLegacyHubSpot, dispatchLegacySuccess } = require( './helpers' );
+const { mockLegacySubmission } = require( './helpers' );
 
+// A form built in HubSpot's older forms editor, which the v4 embed cannot load.
 const PORTAL_ID = '148262752';
-const FORM_ID = 'ec0707d2-b7f5-47c5-bfef-76eb7e8f837e';
+const FORM_ID = '52c02bf0-8aab-46b4-a8b0-0ee0b464b2d5';
+const REGION = 'eu1';
 
 /**
  * Publishes a post holding one legacy embed block and opens it.
@@ -33,7 +35,7 @@ async function publishLegacyForm(
 		name: 'hubspot/form',
 		attributes: {
 			portalId: PORTAL_ID,
-			region: 'na1',
+			region: REGION,
 			formId: FORM_ID,
 			legacyEmbed: true,
 			...attributes,
@@ -50,13 +52,26 @@ async function publishLegacyForm(
 	return container.getAttribute( 'id' );
 }
 
+/**
+ * Returns the form HubSpot's legacy embed rendered, which sits in an iframe.
+ *
+ * @param {import('@playwright/test').Page} page
+ * @param {string}                          instanceId The form container id.
+ * @return {import('@playwright/test').Locator} The rendered form.
+ */
+function legacyForm( page, instanceId ) {
+	return page
+		.locator( `#${ instanceId } iframe.hs-form-iframe` )
+		.contentFrame()
+		.locator( 'form' );
+}
+
 test.describe( 'HubSpot Form — legacy embed', () => {
 	test( 'should render a container and scripts the current loader ignores', async ( {
 		admin,
 		editor,
 		page,
 	} ) => {
-		await stubLegacyHubSpot( page );
 		const instanceId = await publishLegacyForm( { admin, editor, page } );
 
 		// The current loader only picks up .hs-form-html, so a legacy form
@@ -86,7 +101,7 @@ test.describe( 'HubSpot Form — legacy embed', () => {
 		expect( config.legacy ).toBe( true );
 		expect( config.portalId ).toBe( PORTAL_ID );
 		expect( config.formId ).toBe( FORM_ID );
-		expect( config.region ).toBe( 'na1' );
+		expect( config.region ).toBe( REGION );
 	} );
 
 	test( 'should build the form and label its submit input', async ( {
@@ -94,34 +109,20 @@ test.describe( 'HubSpot Form — legacy embed', () => {
 		editor,
 		page,
 	} ) => {
-		await stubLegacyHubSpot( page );
 		const instanceId = await publishLegacyForm(
 			{ admin, editor, page },
 			{ submitText: 'Sign me up' }
 		);
 
-		const options = await page.evaluate( () => {
-			const call = window.__hbsptCalls[ 0 ];
-			return {
-				portalId: call.portalId,
-				formId: call.formId,
-				region: call.region,
-				target: call.target,
-			};
-		} );
-
-		expect( options ).toEqual( {
-			portalId: PORTAL_ID,
-			formId: FORM_ID,
-			region: 'na1',
-			target: `#${ instanceId }`,
-		} );
+		const form = legacyForm( page, instanceId );
+		await expect( form ).toHaveAttribute( 'data-form-id', FORM_ID );
+		await expect( form ).toHaveAttribute( 'data-portal-id', PORTAL_ID );
 
 		// The legacy embed renders <input type="submit">, which takes its
 		// label from value. Setting text content would leave it unchanged.
-		const submit = page.locator( `#${ instanceId } [type="submit"]` );
+		const submit = form.locator( '[type="submit"]' );
 		await expect( submit ).toHaveValue( 'Sign me up' );
-		await expect( submit ).toHaveClass( /hs-button/ );
+		await expect( submit ).toHaveClass( /wp-element-button/ );
 	} );
 
 	test( 'should show the success message and report the submission', async ( {
@@ -129,7 +130,7 @@ test.describe( 'HubSpot Form — legacy embed', () => {
 		editor,
 		page,
 	} ) => {
-		await stubLegacyHubSpot( page );
+		await mockLegacySubmission( page, FORM_ID );
 		const instanceId = await publishLegacyForm(
 			{ admin, editor, page },
 			{ gtmEventName: 'newsletter_signup' },
@@ -141,7 +142,9 @@ test.describe( 'HubSpot Form — legacy embed', () => {
 			]
 		);
 
-		await dispatchLegacySuccess( page );
+		const form = legacyForm( page, instanceId );
+		await form.locator( 'input[name="email"]' ).fill( 'test@example.com' );
+		await form.locator( '[type="submit"]' ).click();
 
 		await expect( page.locator( `#${ instanceId }` ) ).toContainText(
 			'Thank you for signing up!'
