@@ -1,0 +1,78 @@
+{
+  "$schema": "https://schemas.wp.org/trunk/block.json",
+  "apiVersion": 3,
+  "name": "hubspot/form",
+  "version": "0.5.0",
+  "title": "Hubspot Form",
+  "category": "embed",
+  "icon": "clipboard",
+  "attributes": {
+    "portalId": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "default": null
+    },
+    "region": {
+      "type": "string",
+      "enum": [
+        "eu1",
+        "na1"
+      ],
+      "default": "eu1"
+    },
+    "formId": {
+      "type": "string",
+      "default": ""
+    },
+    "redirectUrl": {
+      "type": "string"
+    },
+    "submitText": {
+      "type": "string"
+    },
+    "inlineMessage": {
+      "type": "string"
+    },
+    "gtmEventName": {
+      "type": "string"
+    },
+    "persistSuccess": {
+      "type": "boolean",
+      "default": false
+    },
+    "legacyEmbed": {
+      "type": "boolean",
+      "default": false
+    },
+    "businessUnitId": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "default": null
+    }
+  },
+  "description": "Hubspot form embed block with configuration options",
+  "supports": {
+    "html": false,
+    "align": true,
+    "alignWide": true,
+    "customClassName": true,
+    "spacing": {
+      "margin": true,
+      "padding": true
+    },
+    "anchor": true
+  },
+  "textdomain": "hubspot-form-block",
+  "editorScript": "file:./index.js",
+  "editorStyle": "file:./index.css",
+  "style": "file:./style-index.css",
+  "viewScript": [
+    "file:./view.js",
+    "hs-forms"
+  ],
+  "render": "file:./render.php"
+}
