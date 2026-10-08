@@ -40,6 +40,8 @@ jobs:
                   git config user.name "github-actions[bot]"
                   git config user.email "github-actions[bot]@users.noreply.github.com"
                   git add .
+                  # build/ is gitignored on main, but Composer installs the tag and needs it.
+                  git add --force build
                   git commit -m "Update version to ${{ inputs.version }}"
                   git tag "v${{ inputs.version }}"
                   git push origin "v${{ inputs.version }}"
