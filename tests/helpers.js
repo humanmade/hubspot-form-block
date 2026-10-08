@@ -67,8 +67,33 @@ async function presetFormSubmittedFlag( page, formId ) {
 	}, formId );
 }
 
+/**
+ * Answers a legacy form submission in place of HubSpot.
+ *
+ * The legacy form posts into a hidden iframe, and HubSpot's reply is a page
+ * that tells the form it was accepted by posting a message from that iframe.
+ * Serving that page here lets the real embed run its own success path without
+ * a submission reaching the test account.
+ *
+ * @param {import('@playwright/test').Page} page
+ * @param {string}                          formId The HubSpot form id.
+ */
+async function mockLegacySubmission( page, formId ) {
+	const message = JSON.stringify( { accepted: true, formGuid: formId } );
+
+	await page.route(
+		'**/submissions/v3/public/submit/formsnext/multipart/**',
+		( route ) =>
+			route.fulfill( {
+				contentType: 'text/html',
+				body: `<script>parent.postMessage( ${ message }, '*' );</script>`,
+			} )
+	);
+}
+
 module.exports = {
 	editorCanvas,
 	dispatchHubSpotSuccess,
 	presetFormSubmittedFlag,
+	mockLegacySubmission,
 };

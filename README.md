@@ -13,6 +13,7 @@ A WordPress block plugin that embeds HubSpot Forms v4 directly in page content. 
 - **Custom submit button text** — override the form's submit button label per block instance
 - **Redirect on submit** — optionally redirect to a URL instead of showing an inline message
 - **Multiple instances** — multiple instances of the same form on a single page are fully supported
+- **Legacy form support** for forms built in HubSpot's older forms editor, which the v4 embed cannot load
 
 ## Block settings
 
@@ -25,6 +26,7 @@ A WordPress block plugin that embeds HubSpot Forms v4 directly in page content. 
 | Submit button text | Override the form's submit button label. |
 | GTM event name | dataLayer event name pushed on submission. Defaults to `hubspot_form_submit`. |
 | Success message (inner blocks) | WordPress blocks shown in place of the form after successful submission. Not shown if a redirect URL is set. |
+| Use the legacy form embed | Loads the form through HubSpot's older embed script instead of the v4 developer embed. Turn this on for a form built in HubSpot's older forms editor, which the v4 render definition endpoint reports as "Form not found". Off by default. |
 | Enable gated content | When on, the browser remembers that this form has been submitted on this page (stored in `localStorage`). Returning visitors see the success message immediately instead of the form. Use the "Insert First Submission Message" button to add a block whose content is only shown at the moment of the first submission — stripped on subsequent visits. Disabled when a redirect URL is set. |
 
 ## Global settings
@@ -78,6 +80,8 @@ hubspot-form-block.php  # Plugin entry: block registration, script enqueue, sett
 **Config injection:** Each form instance gets a unique target ID (`hubspot-form-{formId}-{n}`). A `<script>` block writes `window.hsForms[target] = {...config}` so `view.js` can pick it up when HubSpot fires `hs-form-event:on-ready`.
 
 **Success message:** When inner blocks are present and no redirect URL is set, `render.php` emits a `<template id="{target}-inline-message">` containing the server-rendered block HTML. On `hs-form-event:on-submission:success`, `view.js` clones the template content into the form container, replacing the form with the success message.
+
+**Legacy embed (`legacyEmbed`):** HubSpot's v4 developer embed finds its own containers and fires `hs-form-event:*` events. It answers `Form not found` for forms built in the older forms editor, and deliberately does not fall back in that case. With `legacyEmbed` on, `render.php` loads `forms/embed/v2.js` instead, marks the container `hs-form-legacy` so the v4 loader ignores it, and adds the portal, form and region to the injected config. `view.js` then calls `hbspt.forms.create` for each legacy config, queued through `window.hsFormsOnReady` so the order the script and the config arrive in does not matter, and wires the same submit button, GTM, success message and gated content behaviour onto the `onFormReady` and `onFormSubmitted` callbacks. The legacy embed renders `<input type="submit">` rather than a `<button>`, so a custom submit label is set on `value`.
 
 **Gated content (`persistSuccess`):** When enabled, `view.js` writes the current `window.location.pathname` into a `localStorage` entry keyed `hs-form-submitted:{formId}` (value is a JSON array of paths, so the same form on different URLs is tracked independently). A synchronous inline `<script>` emitted by `render.php` checks this array on page load and pre-swaps the container before paint if the current path is present, preventing HubSpot from rendering the form at all. Any inner `core/group` block with class `is-hubspot-form-first-submission` (the "First Submission Message" variation) is stripped from the clone during pre-swap but preserved for the fresh-submission path.
 
