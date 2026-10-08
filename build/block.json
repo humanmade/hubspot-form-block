@@ -42,6 +42,10 @@
       "type": "boolean",
       "default": false
     },
+    "legacyEmbed": {
+      "type": "boolean",
+      "default": false
+    },
     "businessUnitId": {
       "type": [
         "integer",
