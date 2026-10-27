@@ -1,5 +1,6 @@
 {
 	"name": "chek-hubspot-form-block",
+	"version": "0.5.1",
 	"private": true,
 	"description": "Chek Hubspot Form embed block with configuration options",
 	"author": "Chek Creative",

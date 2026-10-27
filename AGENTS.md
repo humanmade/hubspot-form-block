@@ -56,7 +56,7 @@ The `--webpack-copy-php` flag on `build`/`start` is required — it copies `rend
 
 ## Release workflow
 
-Create a GitHub Release with a semver tag → `release.yml` replaces the `__VERSION__` placeholder in `chek-hubspot-form-block.php`, commits, retags, and uploads `chek-hubspot-form-block.zip`.
+Releases go out through Chek's self-hosted update service. Bump the version in `chek-hubspot-form-block.php`, `package.json`, `src/block.json` and `readme.txt`, add a `## X.Y.Z` entry to `CHANGELOG.md`, then push a `vX.Y.Z` tag. `release.yml` runs `chekcreative/wp-release-action`, which builds the plugin, stamps the header `Version:` from the tag, and publishes it to releases.chek.co, where sites pick it up through the Chek Updater plugin. See the Chek handbook page "WordPress → Updating Chek Themes and Plugins".
 
 ## Test credentials
 

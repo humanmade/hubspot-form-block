@@ -1,59 +1,38 @@
-name: Version and Release
+name: Release
 
 on:
-    release:
-        types:
-            - created
-
-permissions:
-    contents: write
+  push:
+    tags: [ 'v[0-9]+.[0-9]+.[0-9]+' ]
 
 jobs:
-    release:
-        runs-on: ubuntu-latest
-        steps:
-            - name: Checkout
-              uses: actions/checkout@v4
-              with:
-                  ref: ${{ github.event.release.tag_name }}
-                  fetch-depth: 0
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
 
-            - name: Setup Node
-              uses: actions/setup-node@v4
-              with:
-                  node-version: '24'
-                  cache: 'npm'
-
-            - name: Install dependencies
-              run: npm i
-
-            - name: Get version from tag
-              id: version
-              run: echo "version=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
-
-            - name: Update version in plugin file
-              run: sed -i "s/__VERSION__/${{ steps.version.outputs.version }}/g" chek-hubspot-form-block.php
-
-            - name: Build
-              run: npm run build
-
-            - name: Commit version update
-              run: |
-                  git config user.name "github-actions[bot]"
-                  git config user.email "github-actions[bot]@users.noreply.github.com"
-                  git add .
-                  git commit -m "Update version to ${{ steps.version.outputs.version }}"
-
-            - name: Update tag
-              run: |
-                  git tag -f ${{ github.event.release.tag_name }}
-                  git push origin ${{ github.event.release.tag_name }} --force
-
-            - name: Create plugin ZIP
-              run: npm run plugin-zip
-
-            - name: Upload release asset
-              run: |
-                  gh release upload ${{ github.event.release.tag_name }} chek-hubspot-form-block.zip --clobber
-              env:
-                  GH_TOKEN: ${{ github.token }}
+      - uses: chekcreative/wp-release-action@v1.1.0
+        with:
+          slug: chek-hubspot-form-block
+          product-name: Chek Hubspot Form Block
+          releases-url: https://releases.chek.co
+          build-command: npm ci && npm run build
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          requires-wp: '6.1'
+          requires-php: '7.0'
+          tested-up-to: '6.9'
+          extra-excludes: |
+            src/*
+            vendor/*
+            artifacts/*
+            playwright-report/*
+            test-results/*
+            .claude/*
+            AGENTS.md
+            README.md
+            blueprint.json
+            playwright.config.js
