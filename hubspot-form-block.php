@@ -29,25 +29,6 @@ function block_init() {
 
 add_action( 'init', __NAMESPACE__ . '\\block_init' );
 
-function register_scripts() {
-	$portal_id = get_option( 'hubspot_embed_portal_id' );
-	if ( empty( $portal_id ) ) {
-		return;
-	}
-
-	$region = get_option( 'hubspot_embed_region', 'eu1' );
-
-	wp_register_script(
-		'hs-forms',
-		sprintf( 'https://js-%s.hsforms.net/forms/embed/developer/%s.js', $region, $portal_id ),
-		[ 'hubspot-form-view-script' ],
-		null,
-		[ 'strategy' => 'async' ]
-	);
-}
-
-add_action( 'enqueue_block_assets', __NAMESPACE__ . '\\register_scripts' );
-
 function enqueue_scripts() {
 	$portal_id = get_option( 'hubspot_embed_portal_id' );
 	if ( empty( $portal_id ) ) {

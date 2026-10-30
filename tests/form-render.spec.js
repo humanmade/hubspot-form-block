@@ -77,4 +77,44 @@ test.describe( 'HubSpot Form — frontend render', () => {
 		expect( config ).toBeTruthy();
 		expect( config.submitButtonClass ).toContain( 'hs-button' );
 	} );
+
+	test( 'should load the embed script only when the form nears the viewport', async ( {
+		admin,
+		editor,
+		page,
+	} ) => {
+		await admin.createNewPost();
+		await editor.setPreferences( 'core/edit-post', {
+			welcomeGuide: false,
+		} );
+
+		// Push the form well past the 800px margin the loader observes with.
+		await editor.insertBlock( {
+			name: 'core/spacer',
+			attributes: { height: '4000px' },
+		} );
+		await editor.insertBlock( {
+			name: 'hubspot/form',
+			attributes: {
+				portalId: PORTAL_ID,
+				region: 'na1',
+				formId: FORM_ID,
+			},
+		} );
+
+		const postId = await editor.publishPost();
+		await page.goto( `/?p=${ postId }` );
+
+		const embedScript = page.locator(
+			'script[src*="hsforms.net/forms/embed"]'
+		);
+		await page.waitForTimeout( 1000 );
+		await expect( embedScript ).toHaveCount( 0 );
+
+		const container = page.locator( '.hs-form-html' );
+		await container.scrollIntoViewIfNeeded();
+
+		await expect( embedScript ).toHaveCount( 1 );
+		await expect( container ).toHaveAttribute( 'data-loaded', /.*/ );
+	} );
 } );
