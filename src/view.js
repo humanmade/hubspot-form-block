@@ -1,4 +1,4 @@
-/* global HubSpotFormsV4, dataLayer, localStorage */
+/* global HubSpotFormsV4, IntersectionObserver, dataLayer, localStorage */
 
 /**
  * Sets the label on a form's submit control.
@@ -174,4 +174,54 @@ if ( document.readyState === 'loading' ) {
 	document.addEventListener( 'DOMContentLoaded', createLegacyForms );
 } else {
 	createLegacyForms();
+}
+
+/**
+ * Loads HubSpot's embed script once a form is about to scroll into view.
+ *
+ * The embed script loads reCAPTCHA, which is a large main thread cost, so
+ * forms below the fold no longer pay it on page load. render.php puts the
+ * script URL on each container; each URL is loaded once.
+ */
+const loadEmbedScripts = () => {
+	const containers = document.querySelectorAll( '[data-embed-src]' );
+	const loaded = new Set();
+
+	const load = ( container ) => {
+		const src = container.dataset.embedSrc;
+		if ( loaded.has( src ) ) {
+			return;
+		}
+		loaded.add( src );
+
+		const script = document.createElement( 'script' );
+		script.src = src;
+		script.async = true;
+		document.body.appendChild( script );
+	};
+
+	if ( ! ( 'IntersectionObserver' in window ) ) {
+		containers.forEach( load );
+		return;
+	}
+
+	const observer = new IntersectionObserver(
+		( entries ) => {
+			entries.forEach( ( entry ) => {
+				if ( entry.isIntersecting ) {
+					observer.unobserve( entry.target );
+					load( entry.target );
+				}
+			} );
+		},
+		{ rootMargin: '800px 0px' }
+	);
+
+	containers.forEach( ( container ) => observer.observe( container ) );
+};
+
+if ( document.readyState === 'loading' ) {
+	document.addEventListener( 'DOMContentLoaded', loadEmbedScripts );
+} else {
+	loadEmbedScripts();
 }
