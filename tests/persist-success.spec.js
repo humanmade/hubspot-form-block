@@ -346,6 +346,11 @@ test.describe( 'HubSpot Form — persist success', () => {
 		await page.waitForTimeout( 5000 );
 		await expect( successParagraph ).toBeAttached();
 
+		// The pre-swap removes data-embed-src, so the embed script never loads.
+		await expect(
+			page.locator( 'script[src*="hsforms.net/forms/embed"]' )
+		).toHaveCount( 0 );
+
 		// The first-submission group should have been stripped.
 		await expect(
 			page.locator( `#${ instanceId } .is-hubspot-form-first-submission` )
