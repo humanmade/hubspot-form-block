@@ -13,31 +13,24 @@ if ( empty( $portal_id ) || empty( $form_id ) ) {
 	return;
 }
 
-// The legacy embed script is not registered globally, because whether a site
-// needs it depends on the individual form rather than on the portal.
+// The embed script loads reCAPTCHA, so view.js only loads it once a form
+// nears the viewport. The current embed uses the global portal when one is
+// set, matching the tracking script.
 if ( $legacy_embed ) {
-	wp_enqueue_script(
-		"hs-forms-v2-{$region}",
-		sprintf( 'https://js-%s.hsforms.net/forms/embed/v2.js', $region ),
-		[ 'hubspot-form-view-script' ],
-		null,
-		[ 'strategy' => 'async' ]
+	$embed_src = sprintf( 'https://js-%s.hsforms.net/forms/embed/v2.js', $region );
+} elseif ( get_option( 'hubspot_embed_portal_id' ) ) {
+	$embed_src = sprintf(
+		'https://js-%s.hsforms.net/forms/embed/developer/%s.js',
+		get_option( 'hubspot_embed_region', 'eu1' ),
+		get_option( 'hubspot_embed_portal_id' )
 	);
+} else {
+	$embed_src = sprintf( 'https://js-%s.hsforms.net/forms/embed/developer/%s.js', $region, $portal_id );
 }
 
 // If no global portal ID is set, the main plugin won't have enqueued the HubSpot
-// scripts — enqueue them here using the block-level portal ID as a fallback.
+// tracking script — enqueue it here using the block-level portal ID as a fallback.
 if ( empty( get_option( 'hubspot_embed_portal_id' ) ) ) {
-	if ( ! $legacy_embed ) {
-		wp_enqueue_script(
-			"hs-forms-{$portal_id}",
-			sprintf( 'https://js-%s.hsforms.net/forms/embed/developer/%s.js', $region, $portal_id ),
-			[ 'hubspot-form-view-script' ],
-			null,
-			[ 'strategy' => 'async' ]
-		);
-	}
-
 	$hs_script_url = sprintf( 'https://js-%s.hs-scripts.com/%s.js', $region, $portal_id );
 	if ( ! empty( $business_unit_id ) ) {
 		$hs_script_url = add_query_arg( 'businessUnitId', $business_unit_id, $hs_script_url );
@@ -125,6 +118,7 @@ $wrapper_attributes = [
 	'data-region' => $region,
 	'data-form-id' => $form_id,
 	'data-portal-id' => $portal_id,
+	'data-embed-src' => $embed_src,
 ];
 
 ?>
