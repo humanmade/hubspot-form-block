@@ -161,6 +161,7 @@ $wrapper_attributes = [
 			el.removeAttribute( 'data-form-id' );
 			el.removeAttribute( 'data-portal-id' );
 			el.removeAttribute( 'data-region' );
+			el.removeAttribute( 'data-embed-src' );
 			el.classList.remove( 'hs-form-html' );
 			el.classList.remove( 'hs-form-legacy' );
 			delete cfg.legacy;

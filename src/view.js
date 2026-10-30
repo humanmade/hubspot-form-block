@@ -180,7 +180,7 @@ if ( document.readyState === 'loading' ) {
  * Loads HubSpot's embed script once a form is about to scroll into view.
  *
  * The embed script loads reCAPTCHA, which is a large main thread cost, so
- * forms below the fold no longer pay it on page load. render.php puts the
+ * forms below the fold do not pay it on page load. render.php puts the
  * script URL on each container; each URL is loaded once.
  */
 const loadEmbedScripts = () => {

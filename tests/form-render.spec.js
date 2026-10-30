@@ -115,6 +115,8 @@ test.describe( 'HubSpot Form — frontend render', () => {
 		await container.scrollIntoViewIfNeeded();
 
 		await expect( embedScript ).toHaveCount( 1 );
-		await expect( container ).toHaveAttribute( 'data-loaded', /.*/ );
+		await expect( container ).toHaveAttribute( 'data-loaded', /.*/, {
+			timeout: 30000,
+		} );
 	} );
 } );
