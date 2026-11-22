@@ -30,24 +30,42 @@ function block_init() {
 add_action( 'init', __NAMESPACE__ . '\\block_init' );
 
 /**
+ * Gets the tracking setting after the `hubspot_form_block_tracking_mode`
+ * filter: `auto`, `consent`, `always` or `never`.
+ *
+ * @return string
+ */
+function get_tracking_setting() : string {
+	$setting = get_option( 'hubspot_embed_tracking', 'auto' );
+
+	return (string) apply_filters( 'hubspot_form_block_tracking_mode', $setting );
+}
+
+/**
  * Resolves the tracking mode: `consent`, `always` or `never`.
+ *
+ * `auto` and unknown values load HubSpot only after consent when the WP
+ * Consent API is active.
  *
  * @return string
  */
 function get_tracking_mode() : string {
-	$mode = get_option( 'hubspot_embed_tracking', 'auto' );
-
-	if ( 'auto' === $mode ) {
-		$mode = function_exists( 'wp_has_consent' ) ? 'consent' : 'always';
-	}
-
-	$mode = apply_filters( 'hubspot_form_block_tracking_mode', $mode );
+	$mode = get_tracking_setting();
 
 	if ( ! in_array( $mode, [ 'consent', 'always', 'never' ], true ) ) {
 		$mode = function_exists( 'wp_has_consent' ) ? 'consent' : 'always';
 	}
 
 	return $mode;
+}
+
+/**
+ * Whether waiting for consent was chosen explicitly rather than by `auto`.
+ *
+ * @return bool
+ */
+function is_strict_consent() : bool {
+	return 'consent' === get_tracking_setting();
 }
 
 /**
@@ -124,10 +142,15 @@ function enqueue_tracker( string $url, string $handle ) {
 
 	// Replace the inline config so it holds every URL once, however many
 	// times this function is called.
+	$config = [
+		'scripts' => $consent_urls,
+		'strict'  => is_strict_consent(),
+	];
+
 	wp_scripts()->add_data(
 		'hubspot-form-block-consent',
 		'before',
-		[ 'window.hubspotFormBlockTracking = ' . wp_json_encode( [ 'scripts' => $consent_urls ] ) . ';' ]
+		[ 'window.hubspotFormBlockTracking = ' . wp_json_encode( $config ) . ';' ]
 	);
 }
 

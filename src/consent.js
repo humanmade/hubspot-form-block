@@ -215,12 +215,19 @@
 
 	// Reads every category from the WP Consent API. Without a consent type no
 	// banner manages consent and the API reports everything as granted, so
-	// those values get the lowest rank.
+	// those values get the lowest rank, or are skipped when the site chose to
+	// wait for consent.
 	function readWpConsent() {
 		const type =
 			typeof window.wp_consent_type !== 'undefined'
 				? window.wp_consent_type
 				: window.wp_fallback_consent_type;
+
+		// A site that waits for consent ignores the answer given when no banner
+		// manages consent.
+		if ( ! type && ( window.hubspotFormBlockTracking || {} ).strict ) {
+			return;
+		}
 
 		const partial = {};
 

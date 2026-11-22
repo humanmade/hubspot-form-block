@@ -110,6 +110,27 @@ function stubWpConsentApi(
 	);
 }
 
+/**
+ * Makes the loader treat the WP Consent API's typeless answer as a rank-0
+ * grant, as it does when the mode is `auto`. The page's inline config sets
+ * `strict` from the "Wait for consent" setting, so it is overridden as it is
+ * assigned.
+ *
+ * @param {import('@playwright/test').Page} page
+ */
+function allowUntypedWpConsent( page ) {
+	return page.addInitScript( () => {
+		let config;
+		Object.defineProperty( window, 'hubspotFormBlockTracking', {
+			configurable: true,
+			get: () => config,
+			set: ( value ) => {
+				config = { ...value, strict: false };
+			},
+		} );
+	} );
+}
+
 // Google Consent Mode default commands used by the order tests.
 const GCM_DEFAULTS = {
 	// A global denial.
@@ -566,6 +587,28 @@ test.describe( 'HubSpot Form Block consent and tracking', () => {
 			).not.toContainEqual( [ 'revokeCookieConsent' ] );
 		} );
 
+		test( 'ignores the WP Consent API answer when no consent type is set', async ( {
+			page,
+		} ) => {
+			const requests = await stubTracker( page );
+			await stubWpConsentApi( page, { noType: true } );
+
+			await page.goto( postUrl );
+			await settle( page );
+			expect( requests ).toHaveLength( 0 );
+			expect(
+				await page.evaluate(
+					() => window.hubspotFormBlockTracking.strict
+				)
+			).toBe( true );
+
+			await page.evaluate( () =>
+				window.hubspotFormBlockConsent.push( { analytics: true } )
+			);
+
+			await expect.poll( () => requests.length ).toBe( 1 );
+		} );
+
 		test( 'follows the WP Consent API', async ( { page } ) => {
 			const requests = await stubTracker( page );
 			await stubWpConsentApi( page );
@@ -652,6 +695,7 @@ test.describe( 'HubSpot Form Block consent and tracking', () => {
 		} ) => {
 			const requests = await stubTracker( page );
 			await stubWpConsentApi( page, { noType: true } );
+			await allowUntypedWpConsent( page );
 			await page.addInitScript( () => {
 				window.dataLayer = [];
 				window.gtag = function () {
@@ -736,6 +780,7 @@ test.describe( 'HubSpot Form Block consent and tracking', () => {
 					const requests = await stubTracker( page );
 					if ( withWp ) {
 						await stubWpConsentApi( page, { noType: true } );
+						await allowUntypedWpConsent( page );
 					}
 					await preloadGcmDefaults( page, order );
 
@@ -755,6 +800,7 @@ test.describe( 'HubSpot Form Block consent and tracking', () => {
 				const page = await context.newPage();
 				const requests = await stubTracker( page );
 				await stubWpConsentApi( page, { noType: true } );
+				await allowUntypedWpConsent( page );
 				await preloadGcmDefaults( page );
 
 				await page.goto( postUrl );
@@ -874,6 +920,7 @@ test.describe( 'HubSpot Form Block consent and tracking', () => {
 		} ) => {
 			const requests = await stubTracker( page );
 			await stubWpConsentApi( page, { noType: true } );
+			await allowUntypedWpConsent( page );
 			await preloadGcmDefaults( page, [ 'b' ] );
 
 			await page.goto( postUrl );
