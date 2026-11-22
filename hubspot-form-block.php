@@ -147,11 +147,15 @@ add_action( 'wp_enqueue_scripts', __NAMESPACE__ . '\\enqueue_scripts' );
  * Nothing is registered when the tracker never loads.
  */
 function register_consent_api() {
-	if ( ! function_exists( 'wp_has_consent' ) || 'never' === get_tracking_mode() ) {
+	$mode = get_tracking_mode();
+
+	if ( ! function_exists( 'wp_has_consent' ) || 'never' === $mode ) {
 		return;
 	}
 
-	add_filter( 'wp_consent_api_registered_' . plugin_basename( __FILE__ ), '__return_true' );
+	if ( 'consent' === $mode ) {
+		add_filter( 'wp_consent_api_registered_' . plugin_basename( __FILE__ ), '__return_true' );
+	}
 
 	if ( ! function_exists( 'wp_add_cookie_info' ) ) {
 		return;
