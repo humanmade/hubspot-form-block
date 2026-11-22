@@ -3,6 +3,7 @@
 	"description": "Hubspot Form Embed Block for WordPress",
 	"type": "wordpress-plugin",
 	"require": {
+		"php": ">=8.2",
 		"composer/installers": "^1 || ^2"
 	},
 	"license": "gpl-2.0-or-later",

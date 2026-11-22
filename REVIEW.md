@@ -9,7 +9,7 @@
 
 ## Always check
 
-- Plugin header says Requires PHP 7.0 and Requires at least 6.1: no nullable/void types, short list syntax or WP 6.3+ only APIs without a fallback.
+- Plugin header says Requires PHP 8.2 (CI tests 8.2 and 8.4) and Requires at least 6.1: no PHP 8.3+ only syntax or functions (typed class constants, `json_validate`), and no WP 6.3+ only APIs without a fallback.
 - Script loading works in block themes, where templates render before `wp_head`, and in classic themes.
 - Editor controls that write site settings are gated by `canUser( 'update', 'settings' )`.
 - Playwright tests stub third-party network (`page.route`) instead of depending on HubSpot being reachable; tests run with `workers: 1` and share site options, so each spec restores what it changes.
@@ -30,6 +30,7 @@ Cap at 3. Comment wording only when it describes removed or replaced behaviour.
 
 ## Learned
 
+- 2026-11-22: Playwright (1.59) wraps every `addInitScript` source in an IIFE, so `var x` in an init script is a local, not a global. Tests that need a real global `var` must inject a `<script>` tag or use another route.
 - 2026-11-22: By design: "Wait for consent" (`strict` in the inline config, from the filtered raw setting) ignores the untyped WP Consent API answer, while Automatic keeps it as a rank 0 grant. Playground has no WP Consent API plugin, so tests fake Automatic with a setter on `window.hubspotFormBlockTracking` that forces `strict: false`.
 - 2026-11-22: Accepted: during start-up, when two different sources disagree at equal rank, denial wins (their read order is unknown). This covers cross-source ties only. Order within one source (queue entries, dataLayer entries) is known and should still count. Do not re-raise the cross-source rule.
 - 2026-11-22: Accepted: after start-up, a rank 0 (untyped WP Consent API) or rank 1 (Consent Mode default) grant can load the tracker before a later denial arrives. The tracker can't be unloaded; the later denial sends `doNotTrack` and `revokeCookieConsent`. Documented in the README. Do not re-raise.
