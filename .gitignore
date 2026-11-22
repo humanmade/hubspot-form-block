@@ -38,3 +38,6 @@ composer.lock
 # Test artifacts
 test-results/
 playwright-report/
+
+# Playwright storage state written by test runs
+artifacts/
