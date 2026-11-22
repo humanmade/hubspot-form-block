@@ -12,7 +12,8 @@
  * default, a region-scoped Google Consent Mode default (denials only), and
  * explicit choices. Explicit choices are queue entries, Google Consent Mode
  * updates, and the WP Consent API once a consent type is set. Between equal
- * ranks the most recent change wins.
+ * ranks the most recent change wins, except during start-up, when the order
+ * of the sources is unknown and a denial wins.
  */
 ( function () {
 	const CATEGORIES = [ 'analytics', 'advertisement', 'functionality' ];
@@ -41,6 +42,7 @@
 		consent[ key ] = false;
 	} );
 	let initialising = true;
+	let batching = false;
 	let loaded = false;
 	let pushedState = '';
 	let wasAnalytics = false;
@@ -108,7 +110,11 @@
 		CATEGORIES.forEach( ( key ) => {
 			if (
 				typeof partial[ key ] !== 'boolean' ||
-				rank < state[ key ].rank
+				rank < state[ key ].rank ||
+				( initialising &&
+					rank === state[ key ].rank &&
+					state[ key ].value === false &&
+					partial[ key ] === true )
 			) {
 				return;
 			}
@@ -116,6 +122,20 @@
 			state[ key ] = { value: partial[ key ], rank };
 			consent[ key ] = partial[ key ];
 		} );
+
+		if ( ! initialising && ! batching ) {
+			apply();
+		}
+	}
+
+	// Runs the updates in `fn`, then applies the result once.
+	function batch( fn ) {
+		batching = true;
+		try {
+			fn();
+		} finally {
+			batching = false;
+		}
 
 		if ( ! initialising ) {
 			apply();
@@ -128,7 +148,9 @@
 
 		queue.slice().forEach( ( entry ) => update( entry, RANK_CHOICE ) );
 		queue.push = function ( ...entries ) {
-			entries.forEach( ( entry ) => update( entry, RANK_CHOICE ) );
+			batch( () =>
+				entries.forEach( ( entry ) => update( entry, RANK_CHOICE ) )
+			);
 			return queue.length;
 		};
 	}
@@ -173,7 +195,9 @@
 
 		const originalPush = dataLayer.push;
 		dataLayer.push = function () {
-			Array.prototype.forEach.call( arguments, fromConsentMode );
+			batch( () =>
+				Array.prototype.forEach.call( arguments, fromConsentMode )
+			);
 			return originalPush.apply( window.dataLayer, arguments );
 		};
 	}

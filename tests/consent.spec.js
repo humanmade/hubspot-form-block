@@ -86,14 +86,15 @@ async function settle( page ) {
  * @param {Object}                          options
  * @param {boolean}                         options.waitForHook Wait for the consent type to be defined.
  * @param {boolean}                         options.noType      Leave the consent type unset, so everything is reported as granted.
+ * @param {Object}                          options.initial     Categories that start out as allowed, such as `{ statistics: 'allow' }`.
  */
 function stubWpConsentApi(
 	page,
-	{ waitForHook = false, noType = false } = {}
+	{ waitForHook = false, noType = false, initial = {} } = {}
 ) {
 	return page.addInitScript(
-		( { hook, untyped } ) => {
-			window.__consent = {};
+		( { hook, untyped, consent } ) => {
+			window.__consent = { ...consent };
 			if ( hook ) {
 				window.waitfor_consent_hook = true;
 				window.wp_has_consent = () => true;
@@ -105,7 +106,7 @@ function stubWpConsentApi(
 					window.__consent[ category ] === 'allow';
 			}
 		},
-		{ hook: waitForHook, untyped: noType }
+		{ hook: waitForHook, untyped: noType, consent: initial }
 	);
 }
 
@@ -230,10 +231,14 @@ test.describe( 'HubSpot Form Block consent and tracking', () => {
 	} ) => {
 		await setTracking( requestUtils, 'never' );
 		const requests = await stubTracker( page );
+		const embedRequest = page.waitForRequest(
+			/hsforms\.net\/forms\/embed/
+		);
 
 		await page.goto( postUrl );
 		await expect( page.locator( '[data-embed-src]' ) ).toBeAttached();
 		await settle( page );
+		await embedRequest;
 
 		expect( requests ).toHaveLength( 0 );
 	} );
@@ -377,6 +382,109 @@ test.describe( 'HubSpot Form Block consent and tracking', () => {
 			expect( requests ).toHaveLength( 0 );
 		} );
 
+		test( 'lets a denial win over a grant of equal rank during start-up', async ( {
+			page,
+		} ) => {
+			const requests = await stubTracker( page );
+			await page.addInitScript( () => {
+				window.dataLayer = [];
+				window.gtag = function () {
+					window.dataLayer.push( arguments );
+				};
+				window.gtag( 'consent', 'update', {
+					analytics_storage: 'granted',
+				} );
+				window.hubspotFormBlockConsent = [ { analytics: false } ];
+			} );
+
+			await page.goto( postUrl );
+			await settle( page );
+
+			expect( requests ).toHaveLength( 0 );
+		} );
+
+		test( 'lets a WP Consent API denial win over a queued grant during start-up', async ( {
+			page,
+		} ) => {
+			const requests = await stubTracker( page );
+			await stubWpConsentApi( page );
+			await page.addInitScript( () => {
+				window.hubspotFormBlockConsent = [ { analytics: true } ];
+			} );
+
+			await page.goto( postUrl );
+			await settle( page );
+
+			expect( requests ).toHaveLength( 0 );
+		} );
+
+		test( 'lets the latest of two equal-rank changes win after start-up', async ( {
+			page,
+		} ) => {
+			const requests = await stubTracker( page );
+			await preloadGcmDefaults( page );
+
+			await page.goto( postUrl );
+			await page.evaluate( () =>
+				window.gtag( 'consent', 'update', {
+					analytics_storage: 'granted',
+				} )
+			);
+			await expect.poll( () => requests.length ).toBe( 1 );
+
+			await page.evaluate( () =>
+				window.hubspotFormBlockConsent.push( { analytics: false } )
+			);
+
+			await expect
+				.poll(
+					async () => ( await lastHubSpotConsent( page ) ).analytics
+				)
+				.toBe( false );
+		} );
+
+		test( 'applies the entries of one queue push together', async ( {
+			page,
+		} ) => {
+			const requests = await stubTracker( page );
+
+			await page.goto( postUrl );
+			await page.evaluate( () =>
+				window.hubspotFormBlockConsent.push(
+					{ analytics: true },
+					{ analytics: false }
+				)
+			);
+			await settle( page );
+
+			expect( requests ).toHaveLength( 0 );
+		} );
+
+		test( 'applies the entries of one dataLayer push together', async ( {
+			page,
+		} ) => {
+			const requests = await stubTracker( page );
+
+			await page.goto( postUrl );
+			await page.evaluate( () => {
+				function args() {
+					return arguments;
+				}
+
+				window.dataLayer.push(
+					args( 'consent', 'update', {
+						analytics_storage: 'granted',
+					} ),
+					args( 'consent', 'update', {
+						analytics_storage: 'denied',
+					} )
+				);
+			} );
+			await settle( page );
+
+			expect( requests ).toHaveLength( 0 );
+		} );
+
 		test( 'lets an explicit JS API choice win over a Google Consent Mode default', async ( {
 			page,
 		} ) => {
@@ -428,14 +536,10 @@ test.describe( 'HubSpot Form Block consent and tracking', () => {
 			page,
 		} ) => {
 			const requests = await stubTracker( page );
-			await stubWpConsentApi( page );
-			await page.addInitScript( () => {
-				window.__consent.statistics = 'allow';
-				window.dataLayer = [];
-				window.gtag = function () {
-					window.dataLayer.push( arguments );
-				};
+			await stubWpConsentApi( page, {
+				initial: { statistics: 'allow' },
 			} );
+			await preloadGcmDefaults( page );
 
 			await page.goto( postUrl );
 			await expect.poll( () => requests.length ).toBe( 1 );
@@ -475,9 +579,12 @@ test.describe( 'HubSpot Form Block consent and tracking', () => {
 			await settle( page );
 			expect( requests ).toHaveLength( 0 );
 
-			await page.evaluate( () =>
-				document.dispatchEvent( new Event( 'wp_consent_type_defined' ) )
-			);
+			await page.evaluate( () => {
+				window.wp_consent_type = 'optin';
+				document.dispatchEvent(
+					new Event( 'wp_consent_type_defined' )
+				);
+			} );
 
 			await expect.poll( () => requests.length ).toBe( 1 );
 		} );
@@ -513,7 +620,7 @@ test.describe( 'HubSpot Form Block consent and tracking', () => {
 			expect( calls[ calls.length - 1 ][ 1 ].analytics ).toBe( false );
 		} );
 
-		test( 'ignores a WP Consent API change event that arrives before the consent type is defined', async ( {
+		test( 'treats a WP Consent API change event before the consent type is defined as a choice', async ( {
 			page,
 		} ) => {
 			const requests = await stubTracker( page );
@@ -523,13 +630,12 @@ test.describe( 'HubSpot Form Block consent and tracking', () => {
 			await page.evaluate( () =>
 				document.dispatchEvent(
 					new CustomEvent( 'wp_listen_for_consent_change', {
-						detail: { statistics: 'deny' },
+						detail: { statistics: 'allow' },
 					} )
 				)
 			);
-			await settle( page );
 
-			expect( requests ).toHaveLength( 0 );
+			await expect.poll( () => requests.length ).toBe( 1 );
 		} );
 
 		test( 'gives a region-scoped Google Consent Mode denial precedence over a global default', async ( {
