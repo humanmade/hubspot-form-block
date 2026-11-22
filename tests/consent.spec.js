@@ -744,6 +744,263 @@ test.describe( 'HubSpot Form Block consent and tracking', () => {
 			} );
 			expect( result.setterCalls ).toBeGreaterThanOrEqual( 1 );
 			expect( result.same ).toBe( true );
+
+			await page.evaluate( () =>
+				window.dataLayer.push( [
+					'consent',
+					'update',
+					{
+						analytics_storage: 'denied',
+						ad_storage: 'denied',
+						functionality_storage: 'denied',
+					},
+				] )
+			);
+
+			await expect
+				.poll( async () => {
+					const hsq = await page.evaluate( () => window._hsq );
+					return hsq[ hsq.length - 1 ];
+				} )
+				.toEqual( [ 'doNotTrack' ] );
+		} );
+
+		test( 'reads a dataLayer whose push cannot become an accessor', async ( {
+			page,
+		} ) => {
+			const requests = await stubTracker( page );
+			await page.addInitScript( () => {
+				window.dataLayer = [];
+				Object.defineProperty( window.dataLayer, 'push', {
+					value: Array.prototype.push,
+					writable: true,
+					configurable: false,
+				} );
+			} );
+
+			await page.goto( postUrl );
+			await settle( page );
+			expect( requests ).toHaveLength( 0 );
+
+			await page.evaluate( () =>
+				window.dataLayer.push( [
+					'consent',
+					'update',
+					{
+						analytics_storage: 'granted',
+						ad_storage: 'granted',
+						functionality_storage: 'granted',
+					},
+				] )
+			);
+			await expect.poll( () => requests.length ).toBe( 1 );
+
+			await page.evaluate( () =>
+				window.dataLayer.push( [
+					'consent',
+					'update',
+					{
+						analytics_storage: 'denied',
+						ad_storage: 'denied',
+						functionality_storage: 'denied',
+					},
+				] )
+			);
+
+			await expect
+				.poll( async () => {
+					const hsq = await page.evaluate( () => window._hsq );
+					return hsq[ hsq.length - 1 ];
+				} )
+				.toEqual( [ 'doNotTrack' ] );
+		} );
+
+		test( 'denies when the JS API queue cannot be read during start-up', async ( {
+			page,
+		} ) => {
+			const requests = await stubTracker( page );
+			const errors = [];
+			page.on( 'pageerror', ( error ) => errors.push( error.message ) );
+			await page.addInitScript( () => {
+				window.hubspotFormBlockConsent = new Proxy( [], {
+					get( target, key ) {
+						if ( key === 'length' ) {
+							throw new Error( 'unreadable' );
+						}
+						return Reflect.get( target, key );
+					},
+				} );
+				window.dataLayer = [];
+				window.gtag = function () {
+					window.dataLayer.push( arguments );
+				};
+				window.gtag( 'consent', 'default', {
+					analytics_storage: 'granted',
+					ad_storage: 'granted',
+					functionality_storage: 'granted',
+				} );
+			} );
+
+			await page.goto( postUrl );
+			await settle( page );
+
+			expect( requests ).toHaveLength( 0 );
+			expect( errors ).toEqual( [
+				expect.stringContaining( 'unreadable' ),
+			] );
+		} );
+
+		test( 'applies a replacement dataLayer only after reading all of it', async ( {
+			page,
+		} ) => {
+			const requests = await stubTracker( page );
+
+			await page.goto( postUrl );
+			await settle( page );
+			expect( requests ).toHaveLength( 0 );
+
+			await page.evaluate( () => {
+				const arr = [
+					[
+						'consent',
+						'update',
+						{
+							analytics_storage: 'granted',
+							ad_storage: 'granted',
+							functionality_storage: 'granted',
+						},
+					],
+				];
+				Object.defineProperty( arr, 1, {
+					enumerable: true,
+					configurable: true,
+					get() {
+						window.dataLayer.push( { event: 'telemetry' } );
+						return [
+							'consent',
+							'update',
+							{
+								analytics_storage: 'denied',
+								ad_storage: 'denied',
+								functionality_storage: 'denied',
+							},
+						];
+					},
+				} );
+				window.dataLayer = arr;
+			} );
+
+			await settle( page );
+			expect( requests ).toHaveLength( 0 );
+		} );
+
+		test( 'replays a preloaded queue whose push cannot be replaced', async ( {
+			page,
+		} ) => {
+			const requests = await stubTracker( page );
+			const errors = [];
+			page.on( 'pageerror', ( error ) => errors.push( error.message ) );
+			await page.addInitScript( () => {
+				const q = [
+					{
+						analytics: false,
+						advertisement: false,
+						functionality: false,
+					},
+				];
+				Object.defineProperty( q, 'push', {
+					get: () => Array.prototype.push,
+					set() {
+						throw new Error( 'locked' );
+					},
+					configurable: false,
+				} );
+				window.hubspotFormBlockConsent = q;
+				window.dataLayer = [];
+				window.gtag = function () {
+					window.dataLayer.push( arguments );
+				};
+				window.gtag( 'consent', 'update', {
+					analytics_storage: 'granted',
+					ad_storage: 'granted',
+					functionality_storage: 'granted',
+				} );
+			} );
+
+			await page.goto( postUrl );
+			await settle( page );
+
+			expect( requests ).toHaveLength( 0 );
+			expect( errors ).toEqual( [ expect.stringContaining( 'locked' ) ] );
+		} );
+
+		test( "still stops tracking when HubSpot's command queue throws", async ( {
+			page,
+		} ) => {
+			const requests = await stubTracker( page );
+			const errors = [];
+			page.on( 'pageerror', ( error ) => errors.push( error.message ) );
+
+			await page.goto( postUrl );
+			await page.evaluate( () =>
+				window.hubspotFormBlockConsent.push( { analytics: true } )
+			);
+			await expect.poll( () => requests.length ).toBe( 1 );
+
+			await page.evaluate( () => {
+				window._hsp = window._hsp || [];
+				window._hsp.push = () => {
+					throw new Error( 'hsp' );
+				};
+				window.hubspotFormBlockConsent.push( { analytics: false } );
+			} );
+
+			await expect
+				.poll( () => page.evaluate( () => window._hsq ) )
+				.toContainEqual( [ 'doNotTrack' ] );
+			expect( errors.length ).toBeGreaterThan( 0 );
+			errors.forEach( ( message ) =>
+				expect( message ).toContain( 'hsp' )
+			);
+		} );
+
+		test( 'reads a denial pushed by a forwarding push before it forwards', async ( {
+			page,
+		} ) => {
+			const requests = await stubTracker( page );
+
+			await page.goto( postUrl );
+			await settle( page );
+			expect( requests ).toHaveLength( 0 );
+
+			await page.evaluate( () => {
+				const dl = window.dataLayer;
+				const prev = dl.push;
+				dl.push = function ( ...args ) {
+					prev.call( dl, [
+						'consent',
+						'update',
+						{
+							analytics_storage: 'denied',
+							ad_storage: 'denied',
+							functionality_storage: 'denied',
+						},
+					] );
+					return prev.apply( dl, args );
+				};
+				window.dataLayer.push( [
+					'consent',
+					'update',
+					{
+						analytics_storage: 'granted',
+						ad_storage: 'granted',
+						functionality_storage: 'granted',
+					},
+				] );
+			} );
+
+			await settle( page );
+			expect( requests ).toHaveLength( 0 );
 		} );
 
 		test( 'lets an explicit choice from a healthy source win when another source throws during start-up', async ( {

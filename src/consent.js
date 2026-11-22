@@ -55,16 +55,21 @@
 		consent[ key ] = false;
 	} );
 	let initialising = true;
-	let batching = false;
+	let batchDepth = 0;
 	let loaded = false;
 	let pushedState = '';
 	let wasAnalytics = false;
 	// Whether HubSpot has last been told it may track: null until first told.
 	let trackingAllowed = null;
 
+	// Errors are reported, so a failing command does not stop the ones after it.
 	function pushTo( name, command ) {
-		window[ name ] = window[ name ] || [];
-		window[ name ].push( command );
+		try {
+			window[ name ] = window[ name ] || [];
+			window[ name ].push( command );
+		} catch ( error ) {
+			report( error );
+		}
 	}
 
 	function loadScripts() {
@@ -134,22 +139,26 @@
 			}
 		} );
 
-		if ( ! initialising && ! batching ) {
+		if ( ! initialising && batchDepth === 0 ) {
 			apply();
 		}
 	}
 
-	// Runs the updates in `fn`, then applies the result once.
+	// Runs the updates in `fn`, then applies the result once. A batch started
+	// inside another applies nothing until the outer one ends.
 	function batch( fn ) {
-		batching = true;
+		batchDepth++;
 		try {
 			fn();
 		} finally {
-			batching = false;
-		}
-
-		if ( ! initialising ) {
-			apply();
+			batchDepth--;
+			if ( ! initialising && batchDepth === 0 ) {
+				try {
+					apply();
+				} catch ( error ) {
+					report( error );
+				}
+			}
 		}
 	}
 
@@ -170,12 +179,19 @@
 	}
 
 	// Reads each entry of `list` with `read`, then applies the result once. An
-	// entry that cannot be read counts as an explicit denial. Errors are
-	// reported and never reach the caller.
+	// entry that cannot be read counts as an explicit denial, and a list that
+	// cannot be read as a failed source. Errors are reported and never reach
+	// the caller.
 	function readEntries( list, read ) {
 		try {
 			batch( () => {
-				const length = list.length;
+				let length = 0;
+				try {
+					length = list.length;
+				} catch ( error ) {
+					denyAll( RANK_REGION_DEFAULT );
+					report( error );
+				}
 				for ( let i = 0; i < length; i++ ) {
 					try {
 						read( list[ i ] );
@@ -198,10 +214,14 @@
 		const queue = ( window.hubspotFormBlockConsent =
 			window.hubspotFormBlockConsent || [] );
 
-		queue.push = function ( ...entries ) {
-			readEntries( entries, readQueueEntry );
-			return queue.length;
-		};
+		try {
+			queue.push = function ( ...entries ) {
+				readEntries( entries, readQueueEntry );
+				return queue.length;
+			};
+		} catch ( error ) {
+			report( error );
+		}
 		readEntries( queue, readQueueEntry );
 	}
 
@@ -252,36 +272,49 @@
 		fromConsentMode( entry );
 	}
 
-	// Returns a push that reads consent commands, then calls `push`.
+	// Returns a push that reads consent commands, then calls `push`. Consent is
+	// applied once `push` returns, so commands it pushes on the way count too.
 	function wrapPush( push ) {
 		return function ( ...entries ) {
-			readEntries( entries, readConsentModeEntry );
-			return push.apply( this, entries );
+			let result;
+			batch( () => {
+				readEntries( entries, readConsentModeEntry );
+				result = push.apply( this, entries );
+			} );
+			return result;
 		};
 	}
 
-	// Defines an accessor property, unless the property already is one.
-	function defineAccessor( target, key, get, set ) {
-		const descriptor = Object.getOwnPropertyDescriptor( target, key );
+	// Makes `push` on a dataLayer array read consent commands first. A push
+	// set later is wrapped too. An accessor already there is left as it is.
+	function hookPush( dataLayer ) {
+		let push = wrapPush( dataLayer.push );
+		const descriptor = Object.getOwnPropertyDescriptor( dataLayer, 'push' );
 
-		if ( descriptor && ( descriptor.get || descriptor.set ) ) {
-			return false;
+		if ( ! descriptor || ! ( descriptor.get || descriptor.set ) ) {
+			try {
+				Object.defineProperty( dataLayer, 'push', {
+					configurable: true,
+					enumerable: descriptor ? descriptor.enumerable : false,
+					get: () => push,
+					set: ( value ) => {
+						if ( typeof value === 'function' && value !== push ) {
+							push = wrapPush( value );
+						}
+					},
+				} );
+				return;
+			} catch ( error ) {}
 		}
 
-		Object.defineProperty( target, key, {
-			configurable: true,
-			enumerable: descriptor ? descriptor.enumerable : false,
-			get,
-			set,
-		} );
-		return true;
+		// A push that cannot become an accessor is replaced once.
+		dataLayer.push = push;
 	}
 
 	const watched = new WeakSet();
 
 	// Reads the commands already in a dataLayer array and the ones pushed to it
-	// later. A push the page sets afterwards, as Google Tag Manager does when it
-	// loads, is wrapped as well.
+	// later.
 	function watchDataLayer( dataLayer ) {
 		if ( ! Array.isArray( dataLayer ) || watched.has( dataLayer ) ) {
 			return;
@@ -289,20 +322,7 @@
 		watched.add( dataLayer );
 
 		try {
-			let push = wrapPush( dataLayer.push );
-			const hooked = defineAccessor(
-				dataLayer,
-				'push',
-				() => push,
-				( value ) => {
-					if ( typeof value === 'function' && value !== push ) {
-						push = wrapPush( value );
-					}
-				}
-			);
-			if ( ! hooked ) {
-				dataLayer.push = push;
-			}
+			hookPush( dataLayer );
 		} catch ( error ) {
 			report( error );
 		}
@@ -310,28 +330,45 @@
 		readEntries( dataLayer, readConsentModeEntry );
 	}
 
+	// Watches arrays assigned to window.dataLayer later. An accessor the page
+	// already defined keeps working, with its value watched after each write.
+	// This is skipped when the page declared dataLayer with `var`.
+	function watchDataLayerAssignments() {
+		const descriptor =
+			Object.getOwnPropertyDescriptor( window, 'dataLayer' ) || {};
+
+		if ( !! descriptor.get !== !! descriptor.set ) {
+			return;
+		}
+
+		let value = window.dataLayer;
+		const get = descriptor.get || ( () => value );
+		const set =
+			descriptor.set ||
+			( ( next ) => {
+				value = next;
+			} );
+
+		try {
+			Object.defineProperty( window, 'dataLayer', {
+				configurable: true,
+				enumerable: descriptor.enumerable !== false,
+				get,
+				set: ( next ) => {
+					set.call( window, next );
+					watchDataLayer( get.call( window ) );
+				},
+			} );
+		} catch ( error ) {}
+	}
+
 	function initDataLayer() {
 		if ( typeof window.dataLayer === 'undefined' ) {
 			window.dataLayer = [];
 		}
 
-		let dataLayer = window.dataLayer;
-		watchDataLayer( dataLayer );
-
-		// Watches an array assigned to window.dataLayer later. This is skipped
-		// when the property already is an accessor, and fails when the page
-		// declared dataLayer with `var`.
-		try {
-			defineAccessor(
-				window,
-				'dataLayer',
-				() => dataLayer,
-				( value ) => {
-					dataLayer = value;
-					watchDataLayer( value );
-				}
-			);
-		} catch ( error ) {}
+		watchDataLayer( window.dataLayer );
+		watchDataLayerAssignments();
 	}
 
 	// Reads every category from the WP Consent API. Without a consent type no
