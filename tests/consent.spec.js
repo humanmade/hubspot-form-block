@@ -3,6 +3,11 @@
  */
 const { test, expect } = require( '@wordpress/e2e-test-utils-playwright' );
 
+/**
+ * Internal dependencies
+ */
+const { insertBlockAndOpenGlobalSettings } = require( './helpers' );
+
 const PORTAL_ID = 148262752;
 const FORM_ID = 'ec0707d2-b7f5-47c5-bfef-76eb7e8f837e';
 
@@ -1200,31 +1205,7 @@ test.describe( 'HubSpot Form Block consent and tracking', () => {
 	} ) => {
 		await setTracking( requestUtils, 'auto' );
 
-		await admin.createNewPost();
-		await editor.setPreferences( 'core/edit-post', {
-			welcomeGuide: false,
-		} );
-		await editor.insertBlock( { name: 'hubspot/form' } );
-		await editor.openDocumentSettingsSidebar();
-
-		const blockTab = page.getByRole( 'tab', { name: 'Block' } );
-		const panelToggle = page.getByRole( 'button', {
-			name: 'Global Settings',
-		} );
-
-		// Wait for the sidebar to render before deciding whether the Block tab
-		// needs selecting.
-		await expect( blockTab.or( panelToggle ).first() ).toBeVisible();
-		if ( await blockTab.isVisible() ) {
-			await blockTab.click();
-		}
-
-		await expect( panelToggle ).toBeVisible();
-		if (
-			( await panelToggle.getAttribute( 'aria-expanded' ) ) === 'false'
-		) {
-			await panelToggle.click();
-		}
+		await insertBlockAndOpenGlobalSettings( admin, editor, page );
 
 		await page
 			.getByLabel( 'HubSpot tracking' )

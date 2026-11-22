@@ -1,3 +1,5 @@
+const { expect } = require( '@wordpress/e2e-test-utils-playwright' );
+
 /**
  * Returns a locator scoped to the block editor canvas iframe, which
  * WordPress uses to isolate block content from the surrounding admin UI.
@@ -7,6 +9,41 @@
  */
 function editorCanvas( page ) {
 	return page.locator( 'iframe[name="editor-canvas"]' ).contentFrame();
+}
+
+/**
+ * Creates a post with a selected HubSpot Form block and opens Global Settings.
+ *
+ * @param {Object} admin      The e2e admin fixture.
+ * @param {Object} editor     The e2e editor fixture.
+ * @param {Object} page       The Playwright page.
+ * @param {Object} attributes Block attributes to insert with.
+ */
+async function insertBlockAndOpenGlobalSettings(
+	admin,
+	editor,
+	page,
+	attributes = {}
+) {
+	await admin.createNewPost();
+	await editor.insertBlock( { name: 'hubspot/form', attributes } );
+	await editorCanvas( page )
+		.getByRole( 'document', { name: 'Block: Hubspot Form' } )
+		.getByRole( 'heading', { name: 'Hubspot Form', exact: true } )
+		.click();
+	await editor.openDocumentSettingsSidebar();
+
+	const sidebar = page.getByRole( 'region', { name: 'Editor settings' } );
+	await sidebar.getByRole( 'tab', { name: 'Block', exact: true } ).click();
+
+	const panelToggle = sidebar.getByRole( 'button', {
+		name: 'Global Settings',
+		exact: true,
+	} );
+	await expect( panelToggle ).toBeVisible();
+	if ( ( await panelToggle.getAttribute( 'aria-expanded' ) ) === 'false' ) {
+		await panelToggle.click();
+	}
 }
 
 /**
@@ -93,6 +130,7 @@ async function mockLegacySubmission( page, formId ) {
 
 module.exports = {
 	editorCanvas,
+	insertBlockAndOpenGlobalSettings,
 	dispatchHubSpotSuccess,
 	presetFormSubmittedFlag,
 	mockLegacySubmission,
