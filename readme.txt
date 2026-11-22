@@ -55,7 +55,11 @@ Google Consent Mode: the plugin reads `gtag( 'consent', ... )` commands from the
 `window.hubspotFormBlockConsent = window.hubspotFormBlockConsent || [];`
 `window.hubspotFormBlockConsent.push( { analytics: true } );`
 
-JavaScript API: a custom consent banner can report consent with `window.hubspotFormBlockConsent.push( { analytics, advertisement, functionality } )`. Each value is a boolean, and you can leave out the ones that did not change. It is safe to call before the plugin script loads. Explicit choices override defaults: JavaScript API entries, Google Consent Mode updates, and WP Consent API values once a banner sets the consent type. Google Consent Mode defaults never override an explicit choice, and region-scoped default denials beat global defaults. At start-up the plugin reads the sources in a fixed order: the JavaScript API queue, Google Consent Mode, then the WP Consent API. After that the most recent explicit change wins.
+JavaScript API: a custom consent banner can report consent with `window.hubspotFormBlockConsent.push( { analytics, advertisement, functionality } )`. Each value is a boolean, and you can leave out the ones that did not change. It is safe to call before the plugin script loads.
+
+When sources disagree, the plugin ranks them, and a higher rank wins whatever order the sources arrive in. Explicit choices rank highest: JavaScript API entries, Google Consent Mode updates, and the WP Consent API once a banner sets a consent type. A region-scoped Google Consent Mode default denial ranks next, then a global Google Consent Mode default. The weakest is the WP Consent API's "everything allowed" answer when no banner sets a consent type. Between sources of equal rank, the most recent change wins.
+
+A region-scoped default denial applies to every visitor, because the plugin cannot know the visitor's region. On a "deny in the EEA, grant elsewhere" setup, visitors outside the region are not tracked until the banner sends an update or the GTM tag calls the JavaScript API.
 
 Things to know:
 
