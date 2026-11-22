@@ -516,9 +516,144 @@ test.describe( 'HubSpot Form Block consent and tracking', () => {
 			page,
 		} ) => {
 			const requests = await stubTracker( page );
-			await page.addInitScript( { content: 'var dataLayer = [];' } );
+			await page.route(
+				( url ) => url.href === postUrl,
+				async ( route ) => {
+					const response = await route.fetch();
+					const body = ( await response.text() ).replace(
+						/<head[^>]*>/i,
+						( head ) =>
+							`${ head }<script>var dataLayer = [];</script>`
+					);
+					await route.fulfill( { response, body } );
+				}
+			);
 
 			await page.goto( postUrl );
+			await settle( page );
+			expect( requests ).toHaveLength( 0 );
+
+			expect(
+				await page.evaluate(
+					() =>
+						Object.getOwnPropertyDescriptor( window, 'dataLayer' )
+							.configurable
+				)
+			).toBe( false );
+
+			await page.evaluate( () => {
+				function gtag() {
+					window.dataLayer.push( arguments );
+				}
+				gtag( 'consent', 'update', {
+					analytics_storage: 'granted',
+				} );
+			} );
+
+			await expect.poll( () => requests.length ).toBe( 1 );
+		} );
+
+		test( 'does not reapply a superseded grant when the dataLayer is copied', async ( {
+			page,
+		} ) => {
+			const requests = await stubTracker( page );
+			await page.addInitScript( () => {
+				window.dataLayer = window.dataLayer || [];
+				window.gtag = function () {
+					window.dataLayer.push( arguments );
+				};
+				window.gtag( 'consent', 'update', {
+					analytics_storage: 'granted',
+					ad_storage: 'granted',
+					functionality_storage: 'granted',
+				} );
+				window.hubspotFormBlockConsent = [
+					{
+						analytics: false,
+						advertisement: false,
+						functionality: false,
+					},
+				];
+			} );
+
+			await page.goto( postUrl );
+			await settle( page );
+			expect( requests ).toHaveLength( 0 );
+
+			await page.evaluate( () => {
+				window.dataLayer = window.dataLayer.slice();
+			} );
+			await settle( page );
+			expect( requests ).toHaveLength( 0 );
+
+			await page.evaluate( () => {
+				window.dataLayer = window.dataLayer.concat( [] );
+			} );
+			await settle( page );
+			expect( requests ).toHaveLength( 0 );
+		} );
+
+		test( 'treats an unreadable Consent Mode entry after a grant as a denial during start-up', async ( {
+			page,
+		} ) => {
+			const requests = await stubTracker( page );
+			const errors = [];
+			page.on( 'pageerror', ( error ) => errors.push( error.message ) );
+			await page.addInitScript( () => {
+				window.dataLayer = window.dataLayer || [];
+				window.gtag = function () {
+					window.dataLayer.push( arguments );
+				};
+				window.gtag( 'consent', 'update', {
+					analytics_storage: 'granted',
+					ad_storage: 'granted',
+					functionality_storage: 'granted',
+				} );
+				window.dataLayer.push( {
+					0: 'consent',
+					1: 'update',
+					get 2() {
+						throw new Error( 'unreadable' );
+					},
+				} );
+			} );
+
+			await page.goto( postUrl );
+			await settle( page );
+			expect( requests ).toHaveLength( 0 );
+			expect( errors ).toEqual( [
+				expect.stringContaining( 'unreadable' ),
+			] );
+		} );
+
+		test( 'keeps watching an array whose entries cannot be read', async ( {
+			page,
+		} ) => {
+			const requests = await stubTracker( page );
+			const errors = [];
+			page.on( 'pageerror', ( error ) => errors.push( error.message ) );
+
+			await page.goto( postUrl );
+			await settle( page );
+			expect( requests ).toHaveLength( 0 );
+
+			const threw = await page.evaluate( () => {
+				const arr = [];
+				Object.defineProperty( arr, 0, {
+					get() {
+						throw new Error( 'unreadable' );
+					},
+					configurable: true,
+					enumerable: true,
+				} );
+				try {
+					window.dataLayer = arr;
+				} catch ( error ) {
+					return true;
+				}
+				return false;
+			} );
+			expect( threw ).toBe( false );
 			await settle( page );
 			expect( requests ).toHaveLength( 0 );
 
@@ -532,6 +667,105 @@ test.describe( 'HubSpot Form Block consent and tracking', () => {
 			} );
 
 			await expect.poll( () => requests.length ).toBe( 1 );
+			expect( errors ).toEqual( [
+				expect.stringContaining( 'unreadable' ),
+			] );
+		} );
+
+		test( 'still reads the JS API queue after an unreadable preloaded entry', async ( {
+			page,
+		} ) => {
+			const requests = await stubTracker( page );
+			const errors = [];
+			page.on( 'pageerror', ( error ) => errors.push( error.message ) );
+			await page.addInitScript( () => {
+				window.hubspotFormBlockConsent = [
+					{
+						get analytics() {
+							throw new Error( 'unreadable' );
+						},
+					},
+				];
+			} );
+
+			await page.goto( postUrl );
+			await settle( page );
+			expect( requests ).toHaveLength( 0 );
+
+			await page.evaluate( () =>
+				window.hubspotFormBlockConsent.push( { analytics: true } )
+			);
+
+			await expect.poll( () => requests.length ).toBe( 1 );
+			expect( errors ).toEqual( [
+				expect.stringContaining( 'unreadable' ),
+			] );
+		} );
+
+		test( 'keeps an existing window.dataLayer accessor', async ( {
+			page,
+		} ) => {
+			const requests = await stubTracker( page );
+			await page.addInitScript( () => {
+				let backing = [];
+				window.setterCalls = 0;
+				Object.defineProperty( window, 'dataLayer', {
+					configurable: true,
+					enumerable: true,
+					get: () => backing,
+					set: ( value ) => {
+						window.setterCalls++;
+						backing = value;
+					},
+				} );
+			} );
+
+			await page.goto( postUrl );
+			await settle( page );
+			expect( requests ).toHaveLength( 0 );
+
+			await page.evaluate( () => {
+				function gtag() {
+					window.dataLayer.push( arguments );
+				}
+				gtag( 'consent', 'update', {
+					analytics_storage: 'granted',
+				} );
+			} );
+			await expect.poll( () => requests.length ).toBe( 1 );
+
+			const result = await page.evaluate( () => {
+				const replacement = [];
+				window.dataLayer = replacement;
+				return {
+					setterCalls: window.setterCalls,
+					same: window.dataLayer === replacement,
+				};
+			} );
+			expect( result.setterCalls ).toBeGreaterThanOrEqual( 1 );
+			expect( result.same ).toBe( true );
+		} );
+
+		test( 'lets an explicit choice from a healthy source win when another source throws during start-up', async ( {
+			page,
+		} ) => {
+			const requests = await stubTracker( page );
+			const errors = [];
+			page.on( 'pageerror', ( error ) => errors.push( error.message ) );
+			await page.addInitScript( () => {
+				window.wp_consent_type = 'optin';
+				window.wp_has_consent = () => {
+					throw new Error( 'consent source failed' );
+				};
+				window.hubspotFormBlockConsent = [ { analytics: true } ];
+			} );
+
+			await page.goto( postUrl );
+
+			await expect.poll( () => requests.length ).toBe( 1 );
+			expect( errors ).toEqual( [
+				expect.stringContaining( 'consent source failed' ),
+			] );
 		} );
 
 		test( 'ignores a region-scoped Google Consent Mode grant', async ( {

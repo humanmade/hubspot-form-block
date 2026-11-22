@@ -153,17 +153,56 @@
 		}
 	}
 
+	// Throws the error outside the current call, so it is reported without
+	// stopping the caller.
+	function report( error ) {
+		setTimeout( () => {
+			throw error;
+		} );
+	}
+
+	function denyAll( rank ) {
+		const partial = {};
+		CATEGORIES.forEach( ( key ) => {
+			partial[ key ] = false;
+		} );
+		update( partial, rank );
+	}
+
+	// Reads each entry of `list` with `read`, then applies the result once. An
+	// entry that cannot be read counts as an explicit denial. Errors are
+	// reported and never reach the caller.
+	function readEntries( list, read ) {
+		try {
+			batch( () => {
+				const length = list.length;
+				for ( let i = 0; i < length; i++ ) {
+					try {
+						read( list[ i ] );
+					} catch ( error ) {
+						denyAll( RANK_CHOICE );
+						report( error );
+					}
+				}
+			} );
+		} catch ( error ) {
+			report( error );
+		}
+	}
+
+	function readQueueEntry( entry ) {
+		update( entry, RANK_CHOICE );
+	}
+
 	function initQueue() {
 		const queue = ( window.hubspotFormBlockConsent =
 			window.hubspotFormBlockConsent || [] );
 
-		queue.slice().forEach( ( entry ) => update( entry, RANK_CHOICE ) );
 		queue.push = function ( ...entries ) {
-			batch( () =>
-				entries.forEach( ( entry ) => update( entry, RANK_CHOICE ) )
-			);
+			readEntries( entries, readQueueEntry );
 			return queue.length;
 		};
+		readEntries( queue, readQueueEntry );
 	}
 
 	// gtag() pushes an `arguments` object, so entries are not arrays.
@@ -199,32 +238,43 @@
 		update( partial, rank );
 	}
 
-	// Throws the error outside the current call, so it is reported without
-	// stopping the caller.
-	function report( error ) {
-		setTimeout( () => {
-			throw error;
-		} );
-	}
+	// Consent Mode entries already read, so a copied array, or a push that
+	// forwards to an earlier push, does not read them again.
+	const seen = new WeakSet();
 
-	function readConsentMode( entries ) {
-		batch( () =>
-			entries.forEach( ( entry ) => {
-				try {
-					fromConsentMode( entry );
-				} catch ( error ) {
-					report( error );
-				}
-			} )
-		);
+	function readConsentModeEntry( entry ) {
+		if ( entry && typeof entry === 'object' ) {
+			if ( seen.has( entry ) ) {
+				return;
+			}
+			seen.add( entry );
+		}
+		fromConsentMode( entry );
 	}
 
 	// Returns a push that reads consent commands, then calls `push`.
 	function wrapPush( push ) {
 		return function ( ...entries ) {
-			readConsentMode( entries );
+			readEntries( entries, readConsentModeEntry );
 			return push.apply( this, entries );
 		};
+	}
+
+	// Defines an accessor property, unless the property already is one.
+	function defineAccessor( target, key, get, set ) {
+		const descriptor = Object.getOwnPropertyDescriptor( target, key );
+
+		if ( descriptor && ( descriptor.get || descriptor.set ) ) {
+			return false;
+		}
+
+		Object.defineProperty( target, key, {
+			configurable: true,
+			enumerable: descriptor ? descriptor.enumerable : false,
+			get,
+			set,
+		} );
+		return true;
 	}
 
 	const watched = new WeakSet();
@@ -238,24 +288,26 @@
 		}
 		watched.add( dataLayer );
 
-		readConsentMode( dataLayer.slice() );
-
-		let push = wrapPush( dataLayer.push );
 		try {
-			Object.defineProperty( dataLayer, 'push', {
-				configurable: true,
-				get: () => push,
-				set: ( value ) => {
+			let push = wrapPush( dataLayer.push );
+			const hooked = defineAccessor(
+				dataLayer,
+				'push',
+				() => push,
+				( value ) => {
 					if ( typeof value === 'function' && value !== push ) {
 						push = wrapPush( value );
 					}
-				},
-			} );
-		} catch ( error ) {
-			try {
+				}
+			);
+			if ( ! hooked ) {
 				dataLayer.push = push;
-			} catch ( assignError ) {}
+			}
+		} catch ( error ) {
+			report( error );
 		}
+
+		readEntries( dataLayer, readConsentModeEntry );
 	}
 
 	function initDataLayer() {
@@ -266,19 +318,19 @@
 		let dataLayer = window.dataLayer;
 		watchDataLayer( dataLayer );
 
-		// Watches an array assigned to window.dataLayer later. Defining the
-		// property fails, and is skipped, when the page declared dataLayer
-		// with `var`.
+		// Watches an array assigned to window.dataLayer later. This is skipped
+		// when the property already is an accessor, and fails when the page
+		// declared dataLayer with `var`.
 		try {
-			Object.defineProperty( window, 'dataLayer', {
-				configurable: true,
-				enumerable: true,
-				get: () => dataLayer,
-				set: ( value ) => {
+			defineAccessor(
+				window,
+				'dataLayer',
+				() => dataLayer,
+				( value ) => {
 					dataLayer = value;
 					watchDataLayer( value );
-				},
-			} );
+				}
+			);
 		} catch ( error ) {}
 	}
 
@@ -346,8 +398,9 @@
 	}
 
 	// Runs `fn` with its updates written to a new store, and returns the store.
-	// If `fn` throws, the store denies every category as an explicit choice,
-	// so only a later explicit grant loads the tracker.
+	// If `fn` throws, the store denies every category with the rank of a
+	// region-scoped default, so a default grant cannot load the tracker but an
+	// explicit choice can.
 	function replay( fn ) {
 		let store = createStore();
 
@@ -357,7 +410,7 @@
 		} catch ( error ) {
 			store = createStore();
 			CATEGORIES.forEach( ( key ) => {
-				store[ key ] = { value: false, rank: RANK_CHOICE };
+				store[ key ] = { value: false, rank: RANK_REGION_DEFAULT };
 			} );
 			report( error );
 		} finally {
