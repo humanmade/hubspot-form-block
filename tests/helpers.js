@@ -26,6 +26,7 @@ async function insertBlockAndOpenGlobalSettings(
 	attributes = {}
 ) {
 	await admin.createNewPost();
+	await editor.setPreferences( 'core/edit-post', { welcomeGuide: false } );
 	await editor.insertBlock( { name: 'hubspot/form', attributes } );
 	await editorCanvas( page )
 		.getByRole( 'document', { name: 'Block: Hubspot Form' } )

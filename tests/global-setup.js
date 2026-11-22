@@ -26,7 +26,9 @@ async function globalSetup( config ) {
 	} );
 
 	if ( response.status() !== 302 ) {
-		throw new Error( `Admin login failed with status ${ response.status() }` );
+		throw new Error(
+			`Admin login failed with status ${ response.status() }`
+		);
 	}
 
 	await context.storageState( { path: STORAGE_STATE } );
