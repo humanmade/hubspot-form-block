@@ -12,8 +12,11 @@
  * default, a region-scoped Google Consent Mode default (denials only), and
  * explicit choices. Explicit choices are queue entries, Google Consent Mode
  * updates, and the WP Consent API once a consent type is set. Between equal
- * ranks the most recent change wins, except during start-up, when the order
- * of the sources is unknown and a denial wins.
+ * ranks the most recent change wins.
+ *
+ * At start-up each source is replayed into its own store first, in its own
+ * order. The stores are then merged: the higher rank wins and, between equal
+ * ranks, a denial wins, because the order of the sources is unknown.
  */
 ( function () {
 	const CATEGORIES = [ 'analytics', 'advertisement', 'functionality' ];
@@ -33,12 +36,22 @@
 	const RANK_REGION_DEFAULT = 2;
 	const RANK_CHOICE = 3;
 
+	function createStore() {
+		const store = {};
+		CATEGORIES.forEach( ( key ) => {
+			store[ key ] = { value: false, rank: -1 };
+		} );
+		return store;
+	}
+
 	// The latest accepted value and rank for each category.
-	const state = {};
+	const state = createStore();
+	// The store that updates are written to. During start-up this is a
+	// temporary store for the source being read.
+	let current = state;
 	// The accepted values, as HubSpot is told about them.
 	const consent = {};
 	CATEGORIES.forEach( ( key ) => {
-		state[ key ] = { value: false, rank: -1 };
 		consent[ key ] = false;
 	} );
 	let initialising = true;
@@ -110,17 +123,15 @@
 		CATEGORIES.forEach( ( key ) => {
 			if (
 				typeof partial[ key ] !== 'boolean' ||
-				rank < state[ key ].rank ||
-				( initialising &&
-					rank === state[ key ].rank &&
-					state[ key ].value === false &&
-					partial[ key ] === true )
+				rank < current[ key ].rank
 			) {
 				return;
 			}
 
-			state[ key ] = { value: partial[ key ], rank };
-			consent[ key ] = partial[ key ];
+			current[ key ] = { value: partial[ key ], rank };
+			if ( current === state ) {
+				consent[ key ] = partial[ key ];
+			}
 		} );
 
 		if ( ! initialising && ! batching ) {
@@ -210,6 +221,7 @@
 			typeof window.wp_consent_type !== 'undefined'
 				? window.wp_consent_type
 				: window.wp_fallback_consent_type;
+
 		const partial = {};
 
 		CATEGORIES.forEach( ( key ) => {
@@ -257,12 +269,50 @@
 		readWpConsent();
 	}
 
-	function init() {
-		initQueue();
-		initDataLayer();
-		initWpConsent();
+	// Runs `fn` with its updates written to a new store, and returns the store.
+	function replay( fn ) {
+		const store = createStore();
 
-		initialising = false;
+		current = store;
+		try {
+			fn();
+		} finally {
+			current = state;
+		}
+
+		return store;
+	}
+
+	// Takes the higher rank for each category, and a denial between equal ranks.
+	function merge( stores ) {
+		CATEGORIES.forEach( ( key ) => {
+			stores.forEach( ( store ) => {
+				const entry = store[ key ];
+
+				if (
+					entry.rank > state[ key ].rank ||
+					( entry.rank >= 0 &&
+						entry.rank === state[ key ].rank &&
+						! entry.value )
+				) {
+					state[ key ] = { ...entry };
+				}
+			} );
+			consent[ key ] = state[ key ].value;
+		} );
+	}
+
+	function init() {
+		try {
+			merge( [
+				replay( initQueue ),
+				replay( initDataLayer ),
+				replay( initWpConsent ),
+			] );
+		} finally {
+			initialising = false;
+		}
+
 		apply();
 	}
 

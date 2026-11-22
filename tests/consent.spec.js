@@ -403,13 +403,71 @@ test.describe( 'HubSpot Form Block consent and tracking', () => {
 			expect( requests ).toHaveLength( 0 );
 		} );
 
-		test( 'lets a WP Consent API denial win over a queued grant during start-up', async ( {
+		test( 'lets a queued denial win over a WP Consent API grant during start-up', async ( {
 			page,
 		} ) => {
 			const requests = await stubTracker( page );
-			await stubWpConsentApi( page );
+			await stubWpConsentApi( page, {
+				initial: { statistics: 'allow' },
+			} );
 			await page.addInitScript( () => {
-				window.hubspotFormBlockConsent = [ { analytics: true } ];
+				window.hubspotFormBlockConsent = [ { analytics: false } ];
+			} );
+
+			await page.goto( postUrl );
+			await settle( page );
+
+			expect( requests ).toHaveLength( 0 );
+		} );
+
+		test( 'lets a later grant in one queue win over an earlier denial', async ( {
+			page,
+		} ) => {
+			const requests = await stubTracker( page );
+			await page.addInitScript( () => {
+				window.hubspotFormBlockConsent = [
+					{ analytics: false },
+					{ analytics: true },
+				];
+			} );
+
+			await page.goto( postUrl );
+
+			await expect.poll( () => requests.length ).toBe( 1 );
+		} );
+
+		test( 'lets a later grant in the dataLayer win over an earlier denial', async ( {
+			page,
+		} ) => {
+			const requests = await stubTracker( page );
+			await preloadGcmDefaults( page );
+			await page.addInitScript( () => {
+				window.gtag( 'consent', 'update', {
+					analytics_storage: 'denied',
+				} );
+				window.gtag( 'consent', 'update', {
+					analytics_storage: 'granted',
+				} );
+			} );
+
+			await page.goto( postUrl );
+
+			await expect.poll( () => requests.length ).toBe( 1 );
+		} );
+
+		test( 'lets a queued denial win over a dataLayer denial followed by a grant', async ( {
+			page,
+		} ) => {
+			const requests = await stubTracker( page );
+			await preloadGcmDefaults( page );
+			await page.addInitScript( () => {
+				window.hubspotFormBlockConsent = [ { analytics: false } ];
+				window.gtag( 'consent', 'update', {
+					analytics_storage: 'denied',
+				} );
+				window.gtag( 'consent', 'update', {
+					analytics_storage: 'granted',
+				} );
 			} );
 
 			await page.goto( postUrl );
