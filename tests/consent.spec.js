@@ -1686,6 +1686,82 @@ test.describe( 'HubSpot Form Block consent and tracking', () => {
 			await settle( page );
 			expect( requests ).toHaveLength( 1 );
 		} );
+
+		test( "applies a withdrawal before the page's push runs", async ( {
+			page,
+		} ) => {
+			const requests = await stubTracker( page );
+
+			await page.goto( postUrl );
+			await page.evaluate( () =>
+				window.hubspotFormBlockConsent.push( {
+					analytics: true,
+					advertisement: true,
+					functionality: true,
+				} )
+			);
+			await expect.poll( () => requests.length ).toBe( 1 );
+			expect(
+				await page.evaluate( () =>
+					( window._hsq || [] ).some(
+						( command ) =>
+							Array.isArray( command ) &&
+							command[ 0 ] === 'doNotTrack'
+					)
+				)
+			).toBe( false );
+
+			await page.evaluate( () => {
+				const dl = window.dataLayer;
+				const prev = dl.push;
+				window.sawDoNotTrack = null;
+				dl.push = function ( ...args ) {
+					window.sawDoNotTrack = ( window._hsq || [] ).some(
+						( command ) =>
+							Array.isArray( command ) &&
+							command[ 0 ] === 'doNotTrack' &&
+							command.length === 1
+					);
+					return prev.apply( dl, args );
+				};
+				window.dataLayer.push( [
+					'consent',
+					'update',
+					{ analytics_storage: 'denied' },
+				] );
+			} );
+
+			expect( await page.evaluate( () => window.sawDoNotTrack ) ).toBe(
+				true
+			);
+		} );
+
+		test( "does not load the tracker when HubSpot's consent command can't be queued", async ( {
+			page,
+		} ) => {
+			const requests = await stubTracker( page );
+			const errors = [];
+			page.on( 'pageerror', ( error ) => errors.push( error.message ) );
+			await page.addInitScript( () => {
+				window._hsp = {
+					push() {
+						throw new Error( 'hsp' );
+					},
+				};
+			} );
+
+			await page.goto( postUrl );
+			await page.evaluate( () =>
+				window.hubspotFormBlockConsent.push( { analytics: true } )
+			);
+
+			await settle( page );
+			expect( requests ).toHaveLength( 0 );
+			expect( errors.length ).toBeGreaterThan( 0 );
+			errors.forEach( ( message ) =>
+				expect( message ).toContain( 'hsp' )
+			);
+		} );
 	} );
 
 	test( 'the tracking control in Global Settings saves the setting', async ( {

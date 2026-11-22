@@ -62,13 +62,16 @@
 	// Whether HubSpot has last been told it may track: null until first told.
 	let trackingAllowed = null;
 
-	// Errors are reported, so a failing command does not stop the ones after it.
+	// Returns whether the command was queued. Errors are reported, so a
+	// failing command does not stop the ones after it.
 	function pushTo( name, command ) {
 		try {
 			window[ name ] = window[ name ] || [];
 			window[ name ].push( command );
+			return true;
 		} catch ( error ) {
 			report( error );
+			return false;
 		}
 	}
 
@@ -92,7 +95,9 @@
 			// Must be set before the tracking script runs.
 			window.disableHubSpotCookieBanner = true;
 			window._hsq = window._hsq || [];
-			pushTo( '_hsp', [ 'setHubSpotConsent', { ...consent } ] );
+			if ( ! pushTo( '_hsp', [ 'setHubSpotConsent', { ...consent } ] ) ) {
+				return;
+			}
 			loadScripts();
 			loaded = true;
 			pushedState = JSON.stringify( consent );
@@ -118,6 +123,15 @@
 		}
 
 		wasAnalytics = consent.analytics;
+	}
+
+	// Whether consent takes back something HubSpot has been told it may do.
+	function withdraws() {
+		if ( ! loaded ) {
+			return false;
+		}
+		const told = JSON.parse( pushedState );
+		return CATEGORIES.some( ( key ) => told[ key ] && ! consent[ key ] );
 	}
 
 	function update( partial, rank ) {
@@ -272,13 +286,17 @@
 		fromConsentMode( entry );
 	}
 
-	// Returns a push that reads consent commands, then calls `push`. Consent is
-	// applied once `push` returns, so commands it pushes on the way count too.
+	// Returns a push that reads consent commands, then calls `push`. A
+	// withdrawal is applied before `push` runs. Anything else is applied once
+	// `push` returns, so commands it pushes on the way count too.
 	function wrapPush( push ) {
 		return function ( ...entries ) {
 			let result;
 			batch( () => {
 				readEntries( entries, readConsentModeEntry );
+				if ( withdraws() ) {
+					apply();
+				}
 				result = push.apply( this, entries );
 			} );
 			return result;
