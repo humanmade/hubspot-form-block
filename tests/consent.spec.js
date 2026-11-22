@@ -252,8 +252,78 @@ test.describe( 'HubSpot Form Block consent and tracking', () => {
 
 			await page.goto( postUrl );
 			await settle( page );
+			expect( requests ).toHaveLength( 0 );
+
+			await page.evaluate( () =>
+				window.gtag( 'consent', 'update', {
+					analytics_storage: 'granted',
+				} )
+			);
+
+			await expect.poll( () => requests.length ).toBe( 1 );
+		} );
+
+		test( 'does not load the tracker for a grant that is denied later during start-up', async ( {
+			page,
+		} ) => {
+			const requests = await stubTracker( page );
+			await page.addInitScript( () => {
+				window.dataLayer = [];
+				window.gtag = function () {
+					window.dataLayer.push( arguments );
+				};
+				window.gtag( 'consent', 'default', {
+					analytics_storage: 'granted',
+				} );
+				window.gtag( 'consent', 'update', {
+					analytics_storage: 'denied',
+				} );
+			} );
+
+			await page.goto( postUrl );
+			await settle( page );
 
 			expect( requests ).toHaveLength( 0 );
+		} );
+
+		test( 'does not load the tracker for a queue that withdraws analytics during start-up', async ( {
+			page,
+		} ) => {
+			const requests = await stubTracker( page );
+			await page.addInitScript( () => {
+				window.hubspotFormBlockConsent = [
+					{ analytics: true },
+					{ analytics: false },
+				];
+			} );
+
+			await page.goto( postUrl );
+			await settle( page );
+
+			expect( requests ).toHaveLength( 0 );
+		} );
+
+		test( 'lets an explicit JS API choice win over a Google Consent Mode default', async ( {
+			page,
+		} ) => {
+			const requests = await stubTracker( page );
+			await page.addInitScript( () => {
+				window.dataLayer = [];
+				window.gtag = function () {
+					window.dataLayer.push( arguments );
+				};
+				window.gtag( 'consent', 'default', {
+					analytics_storage: 'denied',
+				} );
+				window.hubspotFormBlockConsent = [ { analytics: true } ];
+			} );
+
+			await page.goto( postUrl );
+
+			await expect.poll( () => requests.length ).toBe( 1 );
+			expect(
+				await page.evaluate( () => window._hsp )
+			).not.toContainEqual( [ 'revokeCookieConsent' ] );
 		} );
 
 		test( 'follows the WP Consent API', async ( { page } ) => {
@@ -280,6 +350,47 @@ test.describe( 'HubSpot Form Block consent and tracking', () => {
 			] );
 		} );
 
+		test( 'only reads the categories named by a WP Consent API change', async ( {
+			page,
+		} ) => {
+			const requests = await stubTracker( page );
+			await stubWpConsentApi( page );
+			await page.addInitScript( () => {
+				window.__consent.statistics = 'allow';
+				window.dataLayer = [];
+				window.gtag = function () {
+					window.dataLayer.push( arguments );
+				};
+			} );
+
+			await page.goto( postUrl );
+			await expect.poll( () => requests.length ).toBe( 1 );
+
+			await page.evaluate( () =>
+				window.gtag( 'consent', 'update', {
+					analytics_storage: 'denied',
+				} )
+			);
+			await page.evaluate( () => {
+				window.__consent.marketing = 'allow';
+				document.dispatchEvent(
+					new CustomEvent( 'wp_listen_for_consent_change', {
+						detail: { marketing: 'allow' },
+					} )
+				);
+			} );
+
+			await expect
+				.poll( async () => {
+					const hsp = await page.evaluate( () => window._hsp );
+					const calls = hsp.filter(
+						( entry ) => entry[ 0 ] === 'setHubSpotConsent'
+					);
+					return calls[ calls.length - 1 ][ 1 ];
+				} )
+				.toMatchObject( { analytics: false, advertisement: true } );
+		} );
+
 		test( 'waits for the WP Consent API consent type to be defined', async ( {
 			page,
 		} ) => {
@@ -295,6 +406,29 @@ test.describe( 'HubSpot Form Block consent and tracking', () => {
 			);
 
 			await expect.poll( () => requests.length ).toBe( 1 );
+		} );
+
+		test( 'undoes a doNotTrack queued on the same page when analytics is granted', async ( {
+			page,
+		} ) => {
+			const requests = await stubTracker( page );
+
+			await page.goto( postUrl );
+			await page.evaluate( () =>
+				window.hubspotFormBlockConsent.push( { functionality: true } )
+			);
+			await expect.poll( () => requests.length ).toBe( 1 );
+
+			await page.evaluate( () =>
+				window.hubspotFormBlockConsent.push( { analytics: true } )
+			);
+
+			await expect
+				.poll( async () => {
+					const hsq = await page.evaluate( () => window._hsq );
+					return hsq[ hsq.length - 1 ];
+				} )
+				.toEqual( [ 'doNotTrack', { track: true } ] );
 		} );
 
 		test( 'revokes cookie consent when analytics is withdrawn', async ( {

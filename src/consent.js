@@ -23,6 +23,10 @@
 		advertisement: false,
 		functionality: false,
 	};
+	// Categories set explicitly, which a Google Consent Mode default must not
+	// override.
+	const explicit = new Set();
+	let initialising = true;
 	let loaded = false;
 	let pushedState = '';
 	let wasAnalytics = false;
@@ -70,7 +74,10 @@
 			pushTo( '_hsq', [ 'doNotTrack' ] );
 			trackingAllowed = false;
 		} else if ( consent.analytics && trackingAllowed !== true ) {
-			if ( /(?:^|;\s*)__hs_do_not_track=/.test( document.cookie ) ) {
+			if (
+				trackingAllowed === false ||
+				/(?:^|;\s*)__hs_do_not_track=/.test( document.cookie )
+			) {
 				pushTo( '_hsq', [ 'doNotTrack', { track: true } ] );
 			}
 			trackingAllowed = true;
@@ -79,27 +86,38 @@
 		wasAnalytics = consent.analytics;
 	}
 
-	function update( partial ) {
+	function update( partial, { isDefault = false } = {} ) {
 		if ( ! partial || typeof partial !== 'object' ) {
 			return;
 		}
 
 		CATEGORIES.forEach( ( key ) => {
-			if ( typeof partial[ key ] === 'boolean' ) {
-				consent[ key ] = partial[ key ];
+			if ( typeof partial[ key ] !== 'boolean' ) {
+				return;
+			}
+
+			if ( isDefault && explicit.has( key ) ) {
+				return;
+			}
+
+			consent[ key ] = partial[ key ];
+			if ( ! isDefault ) {
+				explicit.add( key );
 			}
 		} );
 
-		apply();
+		if ( ! initialising ) {
+			apply();
+		}
 	}
 
 	function initQueue() {
 		const queue = ( window.hubspotFormBlockConsent =
 			window.hubspotFormBlockConsent || [] );
 
-		queue.slice().forEach( update );
+		queue.slice().forEach( ( entry ) => update( entry ) );
 		queue.push = function ( ...entries ) {
-			entries.forEach( update );
+			entries.forEach( ( entry ) => update( entry ) );
 			return queue.length;
 		};
 	}
@@ -129,7 +147,7 @@
 			}
 		} );
 
-		update( partial );
+		update( partial, { isDefault: entry[ 1 ] === 'default' } );
 	}
 
 	function initDataLayer() {
@@ -144,14 +162,26 @@
 		};
 	}
 
-	function readWpConsent() {
+	// Reads the given HubSpot categories from the WP Consent API.
+	function readWpConsent( keys = CATEGORIES ) {
 		const partial = {};
 
-		CATEGORIES.forEach( ( key ) => {
+		keys.forEach( ( key ) => {
 			partial[ key ] = !! window.wp_has_consent( WP_CATEGORIES[ key ] );
 		} );
 
 		update( partial );
+	}
+
+	// Reads only the categories named in the change event's detail.
+	function readWpConsentChange( event ) {
+		const changed = Object.keys( ( event && event.detail ) || {} );
+
+		readWpConsent(
+			CATEGORIES.filter( ( key ) =>
+				changed.includes( WP_CATEGORIES[ key ] )
+			)
+		);
 	}
 
 	function initWpConsent() {
@@ -161,7 +191,7 @@
 
 		document.addEventListener(
 			'wp_listen_for_consent_change',
-			readWpConsent
+			readWpConsentChange
 		);
 
 		// Until a consent banner sets the type, the API reports consent for
@@ -172,7 +202,7 @@
 		) {
 			document.addEventListener(
 				'wp_consent_type_defined',
-				readWpConsent,
+				() => readWpConsent(),
 				{
 					once: true,
 				}
@@ -187,6 +217,9 @@
 		initQueue();
 		initDataLayer();
 		initWpConsent();
+
+		initialising = false;
+		apply();
 	}
 
 	if ( document.readyState === 'loading' ) {
