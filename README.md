@@ -69,7 +69,7 @@ window.hubspotFormBlockConsent.push( { analytics: true } );
 
 ### JavaScript API
 
-A custom consent banner can report consent with `window.hubspotFormBlockConsent.push( { analytics, advertisement, functionality } )`. Each value is a boolean, and you can leave out the ones that did not change. It is safe to call before the plugin script loads. The latest change wins, whichever source it came from.
+A custom consent banner can report consent with `window.hubspotFormBlockConsent.push( { analytics, advertisement, functionality } )`. Each value is a boolean, and you can leave out the ones that did not change. It is safe to call before the plugin script loads. Explicit choices override defaults: JavaScript API entries, Google Consent Mode updates, and WP Consent API values once a banner sets the consent type. Google Consent Mode defaults never override an explicit choice, and region-scoped default denials beat global defaults. At start-up the plugin reads the sources in a fixed order: the JavaScript API queue, Google Consent Mode, then the WP Consent API. After that the most recent explicit change wins.
 
 ### Things to know
 
