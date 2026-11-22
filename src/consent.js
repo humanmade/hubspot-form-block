@@ -165,8 +165,12 @@
 		if ( ! loaded ) {
 			return false;
 		}
+		// While HubSpot's banner decides, any denial from a consent tool counts.
 		if ( leftToHubSpot ) {
-			return ! noConsentTool();
+			return (
+				! noConsentTool() &&
+				CATEGORIES.some( ( key ) => ! consent[ key ] )
+			);
 		}
 		const told = JSON.parse( pushedState );
 		return CATEGORIES.some( ( key ) => told[ key ] && ! consent[ key ] );

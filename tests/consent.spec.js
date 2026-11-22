@@ -1496,6 +1496,63 @@ test.describe( 'HubSpot Form Block consent and tracking', () => {
 			).not.toContainEqual( [ 'revokeCookieConsent' ] );
 		} );
 
+		test( "does not tell HubSpot's banner about a grant a forwarding push then denies", async ( {
+			page,
+		} ) => {
+			const requests = await stubTracker( page );
+			await stubWpConsentApi( page, { noType: true } );
+			await allowUntypedWpConsent( page );
+
+			await page.goto( postUrl );
+			await expect.poll( () => requests.length ).toBe( 1 );
+			await settle( page );
+
+			await page.evaluate( () => {
+				const dl = window.dataLayer;
+				const prev = dl.push;
+				dl.push = function ( ...args ) {
+					prev.call( dl, [
+						'consent',
+						'update',
+						{
+							analytics_storage: 'denied',
+							ad_storage: 'denied',
+							functionality_storage: 'denied',
+						},
+					] );
+					return prev.apply( dl, args );
+				};
+				window.dataLayer.push( [
+					'consent',
+					'update',
+					{
+						analytics_storage: 'granted',
+						ad_storage: 'granted',
+						functionality_storage: 'granted',
+					},
+				] );
+			} );
+
+			await expect
+				.poll( () => page.evaluate( () => window._hsp ) )
+				.toContainEqual( [ 'revokeCookieConsent' ] );
+			const hsp = await page.evaluate( () => window._hsp );
+			const calls = hsp.filter(
+				( entry ) => entry[ 0 ] === 'setHubSpotConsent'
+			);
+			expect(
+				calls.filter( ( entry ) => entry[ 1 ].analytics === true )
+			).toHaveLength( 0 );
+			expect( calls[ calls.length - 1 ][ 1 ] ).toEqual( {
+				analytics: false,
+				advertisement: false,
+				functionality: false,
+			} );
+			expect( await page.evaluate( () => window._hsq ) ).toContainEqual( [
+				'doNotTrack',
+			] );
+		} );
+
 		test( "turns HubSpot's banner off when a Consent Mode default is present with the untyped answer", async ( {
 			page,
 		} ) => {
