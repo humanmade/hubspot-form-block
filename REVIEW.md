@@ -30,6 +30,7 @@ Cap at 3. Comment wording only when it describes removed or replaced behaviour.
 
 ## Learned
 
+- 2026-11-22: By design: "Wait for consent" (`strict` in the inline config, from the filtered raw setting) ignores the untyped WP Consent API answer, while Automatic keeps it as a rank 0 grant. Playground has no WP Consent API plugin, so tests fake Automatic with a setter on `window.hubspotFormBlockTracking` that forces `strict: false`.
 - 2026-11-22: Accepted: during start-up, when two different sources disagree at equal rank, denial wins (their read order is unknown). This covers cross-source ties only. Order within one source (queue entries, dataLayer entries) is known and should still count. Do not re-raise the cross-source rule.
 - 2026-11-22: Accepted: after start-up, a rank 0 (untyped WP Consent API) or rank 1 (Consent Mode default) grant can load the tracker before a later denial arrives. The tracker can't be unloaded; the later denial sends `doNotTrack` and `revokeCookieConsent`. Documented in the README. Do not re-raise.
 
