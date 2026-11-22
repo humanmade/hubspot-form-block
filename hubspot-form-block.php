@@ -31,41 +31,34 @@ add_action( 'init', __NAMESPACE__ . '\\block_init' );
 
 /**
  * Gets the tracking setting after the `hubspot_form_block_tracking_mode`
- * filter: `auto`, `consent`, `always` or `never`.
+ * filter: `auto`, `consent`, `always` or `never`. A filter result that is not
+ * a string counts as `auto`.
  *
  * @return string
  */
 function get_tracking_setting() : string {
-	$setting = get_option( 'hubspot_embed_tracking', 'auto' );
+	$setting = apply_filters( 'hubspot_form_block_tracking_mode', get_option( 'hubspot_embed_tracking', 'auto' ) );
 
-	return (string) apply_filters( 'hubspot_form_block_tracking_mode', $setting );
+	return is_string( $setting ) ? $setting : 'auto';
 }
 
 /**
- * Resolves the tracking mode: `consent`, `always` or `never`.
+ * Resolves a tracking setting to a mode: `consent`, `always` or `never`.
  *
  * `auto` and unknown values load HubSpot only after consent when the WP
  * Consent API is active.
  *
+ * @param string|null $setting Tracking setting. Read with get_tracking_setting() when null.
  * @return string
  */
-function get_tracking_mode() : string {
-	$mode = get_tracking_setting();
+function get_tracking_mode( ?string $setting = null ) : string {
+	$mode = $setting ?? get_tracking_setting();
 
 	if ( ! in_array( $mode, [ 'consent', 'always', 'never' ], true ) ) {
 		$mode = function_exists( 'wp_has_consent' ) ? 'consent' : 'always';
 	}
 
 	return $mode;
-}
-
-/**
- * Whether waiting for consent was chosen explicitly rather than by `auto`.
- *
- * @return bool
- */
-function is_strict_consent() : bool {
-	return 'consent' === get_tracking_setting();
 }
 
 /**
@@ -98,7 +91,8 @@ function get_tracker_url( $portal_id, $region, $business_unit_id = 0 ) : string 
 function enqueue_tracker( string $url, string $handle ) {
 	static $consent_urls = [];
 
-	$mode = get_tracking_mode();
+	$setting = get_tracking_setting();
+	$mode    = get_tracking_mode( $setting );
 
 	if ( 'always' === $mode ) {
 		wp_enqueue_script(
@@ -144,7 +138,8 @@ function enqueue_tracker( string $url, string $handle ) {
 	// times this function is called.
 	$config = [
 		'scripts' => $consent_urls,
-		'strict'  => is_strict_consent(),
+		// Waiting for consent was chosen rather than resolved from `auto`.
+		'strict'  => 'consent' === $setting,
 	];
 
 	wp_scripts()->add_data(
