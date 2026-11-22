@@ -252,6 +252,12 @@ test.describe( 'HubSpot Form Block consent and tracking', () => {
 	} ) => {
 		await setTracking( requestUtils, 'never' );
 		const requests = await stubTracker( page );
+		await page.route( /hsforms\.net\/forms\/embed/, ( route ) =>
+			route.fulfill( {
+				contentType: 'application/javascript',
+				body: 'window.__hsEmbedLoaded = true;',
+			} )
+		);
 		const embedRequest = page.waitForRequest(
 			/hsforms\.net\/forms\/embed/
 		);
