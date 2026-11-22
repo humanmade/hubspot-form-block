@@ -5,12 +5,14 @@
  * queue, Google Consent Mode commands pushed to `window.dataLayer`, and the
  * WP Consent API.
  *
- * Explicit choices override defaults. These are queue entries, Google Consent
- * Mode updates, and WP Consent API values once a banner sets the consent
- * type. Google Consent Mode defaults never override an explicit choice, and
- * region-scoped default denials beat global defaults. At start-up the sources
- * are read in a fixed order: queue, Google Consent Mode, WP Consent API.
- * After that the most recent explicit change wins.
+ * Each category keeps the value and rank of its latest accepted change. A
+ * change applies only if its rank is at least the stored rank, so the result
+ * does not depend on the order in which sources are read. From weakest to
+ * strongest: the WP Consent API with no consent type, a Google Consent Mode
+ * default, a region-scoped Google Consent Mode default (denials only), and
+ * explicit choices. Explicit choices are queue entries, Google Consent Mode
+ * updates, and the WP Consent API once a consent type is set. Between equal
+ * ranks the most recent change wins.
  */
 ( function () {
 	const CATEGORIES = [ 'analytics', 'advertisement', 'functionality' ];
@@ -25,17 +27,19 @@
 		functionality: 'preferences',
 	};
 
-	const consent = {
-		analytics: false,
-		advertisement: false,
-		functionality: false,
-	};
-	// Categories set explicitly, which a Google Consent Mode default must not
-	// override.
-	const explicit = new Set();
-	// Categories denied by a region-scoped Google Consent Mode default, which a
-	// global default must not override.
-	const regionDenied = new Set();
+	const RANK_NO_BANNER = 0;
+	const RANK_DEFAULT = 1;
+	const RANK_REGION_DEFAULT = 2;
+	const RANK_CHOICE = 3;
+
+	// The latest accepted value and rank for each category.
+	const state = {};
+	// The accepted values, as HubSpot is told about them.
+	const consent = {};
+	CATEGORIES.forEach( ( key ) => {
+		state[ key ] = { value: false, rank: -1 };
+		consent[ key ] = false;
+	} );
 	let initialising = true;
 	let loaded = false;
 	let pushedState = '';
@@ -96,24 +100,21 @@
 		wasAnalytics = consent.analytics;
 	}
 
-	function update( partial, { isDefault = false } = {} ) {
+	function update( partial, rank ) {
 		if ( ! partial || typeof partial !== 'object' ) {
 			return;
 		}
 
 		CATEGORIES.forEach( ( key ) => {
-			if ( typeof partial[ key ] !== 'boolean' ) {
+			if (
+				typeof partial[ key ] !== 'boolean' ||
+				rank < state[ key ].rank
+			) {
 				return;
 			}
 
-			if ( isDefault && explicit.has( key ) ) {
-				return;
-			}
-
+			state[ key ] = { value: partial[ key ], rank };
 			consent[ key ] = partial[ key ];
-			if ( ! isDefault ) {
-				explicit.add( key );
-			}
 		} );
 
 		if ( ! initialising ) {
@@ -125,9 +126,9 @@
 		const queue = ( window.hubspotFormBlockConsent =
 			window.hubspotFormBlockConsent || [] );
 
-		queue.slice().forEach( ( entry ) => update( entry ) );
+		queue.slice().forEach( ( entry ) => update( entry, RANK_CHOICE ) );
 		queue.push = function ( ...entries ) {
-			entries.forEach( ( entry ) => update( entry ) );
+			entries.forEach( ( entry ) => update( entry, RANK_CHOICE ) );
 			return queue.length;
 		};
 	}
@@ -148,26 +149,21 @@
 		// The visitor's region is unknown, so region-scoped commands only
 		// apply when they deny consent.
 		const regional = !! entry[ 2 ].region;
-		const isDefault = entry[ 1 ] === 'default';
+		let rank = RANK_CHOICE;
+		if ( entry[ 1 ] === 'default' ) {
+			rank = regional ? RANK_REGION_DEFAULT : RANK_DEFAULT;
+		}
 		const partial = {};
 
 		Object.keys( GCM_KEYS ).forEach( ( key ) => {
-			const category = GCM_KEYS[ key ];
 			const value = entry[ 2 ][ key ];
 
-			if ( isDefault && ! regional && regionDenied.has( category ) ) {
-				return;
-			}
-
 			if ( value === 'denied' || ( value === 'granted' && ! regional ) ) {
-				partial[ category ] = value === 'granted';
-				if ( isDefault && regional ) {
-					regionDenied.add( category );
-				}
+				partial[ GCM_KEYS[ key ] ] = value === 'granted';
 			}
 		} );
 
-		update( partial, { isDefault } );
+		update( partial, rank );
 	}
 
 	function initDataLayer() {
@@ -184,18 +180,19 @@
 
 	// Reads every category from the WP Consent API. Without a consent type no
 	// banner manages consent and the API reports everything as granted, so
-	// those values only count as defaults.
+	// those values get the lowest rank.
 	function readWpConsent() {
+		const type =
+			typeof window.wp_consent_type !== 'undefined'
+				? window.wp_consent_type
+				: window.wp_fallback_consent_type;
 		const partial = {};
 
 		CATEGORIES.forEach( ( key ) => {
 			partial[ key ] = !! window.wp_has_consent( WP_CATEGORIES[ key ] );
 		} );
 
-		update( partial, {
-			isDefault:
-				! window.wp_consent_type && ! window.wp_fallback_consent_type,
-		} );
+		update( partial, type ? RANK_CHOICE : RANK_NO_BANNER );
 	}
 
 	// Takes the values from the change event's detail.
@@ -210,7 +207,7 @@
 			}
 		} );
 
-		update( partial );
+		update( partial, RANK_CHOICE );
 	}
 
 	function initWpConsent() {
@@ -222,6 +219,7 @@
 			'wp_listen_for_consent_change',
 			readWpConsentChange
 		);
+		document.addEventListener( 'wp_consent_type_defined', readWpConsent );
 
 		// Until a consent banner sets the type, the API reports consent for
 		// everything.
@@ -229,13 +227,6 @@
 			window.waitfor_consent_hook &&
 			typeof window.wp_consent_type === 'undefined'
 		) {
-			document.addEventListener(
-				'wp_consent_type_defined',
-				readWpConsent,
-				{
-					once: true,
-				}
-			);
 			return;
 		}
 

@@ -109,6 +109,71 @@ function stubWpConsentApi(
 	);
 }
 
+// Google Consent Mode default commands used by the order tests.
+const GCM_DEFAULTS = {
+	// A global denial.
+	b: {
+		analytics_storage: 'denied',
+		ad_storage: 'denied',
+		functionality_storage: 'denied',
+	},
+	// A region-scoped denial.
+	c: {
+		analytics_storage: 'denied',
+		ad_storage: 'denied',
+		functionality_storage: 'denied',
+		region: [ 'DE' ],
+	},
+	// A global grant.
+	d: {
+		analytics_storage: 'granted',
+		ad_storage: 'granted',
+		functionality_storage: 'granted',
+	},
+};
+
+const GCM_ORDERS = [
+	[ 'b', 'c', 'd' ],
+	[ 'b', 'd', 'c' ],
+	[ 'c', 'b', 'd' ],
+	[ 'c', 'd', 'b' ],
+	[ 'd', 'b', 'c' ],
+	[ 'd', 'c', 'b' ],
+];
+
+/**
+ * Defines gtag() and pushes Google Consent Mode defaults before the page's
+ * scripts run.
+ *
+ * @param {import('@playwright/test').Page} page
+ * @param {string[]}                        order Keys of GCM_DEFAULTS, in the order to push them.
+ */
+function preloadGcmDefaults( page, order = [] ) {
+	return page.addInitScript(
+		( commands ) => {
+			window.dataLayer = window.dataLayer || [];
+			window.gtag = function () {
+				window.dataLayer.push( arguments );
+			};
+			commands.forEach( ( command ) =>
+				window.gtag( 'consent', 'default', command )
+			);
+		},
+		order.map( ( key ) => GCM_DEFAULTS[ key ] )
+	);
+}
+
+/**
+ * Returns the last value HubSpot was told about with setHubSpotConsent.
+ *
+ * @param {import('@playwright/test').Page} page
+ */
+async function lastHubSpotConsent( page ) {
+	const hsp = await page.evaluate( () => window._hsp );
+	const calls = hsp.filter( ( entry ) => entry[ 0 ] === 'setHubSpotConsent' );
+	return calls[ calls.length - 1 ][ 1 ];
+}
+
 test.describe( 'HubSpot Form Block consent and tracking', () => {
 	test.beforeAll( async ( { requestUtils } ) => {
 		await setSettings( requestUtils, {
@@ -496,6 +561,175 @@ test.describe( 'HubSpot Form Block consent and tracking', () => {
 			);
 
 			await expect.poll( () => requests.length ).toBe( 1 );
+		} );
+
+		for ( const withWp of [ true, false ] ) {
+			test( `loads no tracker for any order of Google Consent Mode defaults ${
+				withWp ? 'over' : 'without'
+			} an untyped WP Consent API`, async ( { context } ) => {
+				for ( const order of GCM_ORDERS ) {
+					const page = await context.newPage();
+					const requests = await stubTracker( page );
+					if ( withWp ) {
+						await stubWpConsentApi( page, { noType: true } );
+					}
+					await preloadGcmDefaults( page, order );
+
+					await page.goto( postUrl );
+					await settle( page );
+
+					expect( requests, order.join() ).toHaveLength( 0 );
+					await page.close();
+				}
+			} );
+		}
+
+		test( 'ends with everything denied for any order of Google Consent Mode defaults pushed after an untyped WP Consent API grant', async ( {
+			context,
+		} ) => {
+			for ( const order of GCM_ORDERS ) {
+				const page = await context.newPage();
+				const requests = await stubTracker( page );
+				await stubWpConsentApi( page, { noType: true } );
+				await preloadGcmDefaults( page );
+
+				await page.goto( postUrl );
+				await expect.poll( () => requests.length ).toBe( 1 );
+
+				await page.evaluate(
+					( commands ) => {
+						commands.forEach( ( command ) =>
+							window.gtag( 'consent', 'default', command )
+						);
+					},
+					order.map( ( key ) => GCM_DEFAULTS[ key ] )
+				);
+
+				await expect
+					.poll(
+						() => page.evaluate( () => window._hsp ),
+						order.join()
+					)
+					.toContainEqual( [ 'revokeCookieConsent' ] );
+				expect(
+					await lastHubSpotConsent( page ),
+					order.join()
+				).toEqual( {
+					analytics: false,
+					advertisement: false,
+					functionality: false,
+				} );
+				await page.close();
+			}
+		} );
+
+		test( 'lets a preloaded JS API choice beat a region-scoped default denial', async ( {
+			page,
+		} ) => {
+			const requests = await stubTracker( page );
+			await preloadGcmDefaults( page, [ 'c' ] );
+			await page.addInitScript( () => {
+				window.hubspotFormBlockConsent = [ { analytics: true } ];
+			} );
+
+			await page.goto( postUrl );
+
+			await expect.poll( () => requests.length ).toBe( 1 );
+			expect( await lastHubSpotConsent( page ) ).toEqual(
+				ANALYTICS_ONLY
+			);
+		} );
+
+		test( 'lets a JS API choice pushed after load beat a region-scoped default denial', async ( {
+			page,
+		} ) => {
+			const requests = await stubTracker( page );
+			await preloadGcmDefaults( page, [ 'c' ] );
+
+			await page.goto( postUrl );
+			await settle( page );
+			expect( requests ).toHaveLength( 0 );
+
+			await page.evaluate( () =>
+				window.hubspotFormBlockConsent.push( { analytics: true } )
+			);
+
+			await expect.poll( () => requests.length ).toBe( 1 );
+			expect( await lastHubSpotConsent( page ) ).toEqual(
+				ANALYTICS_ONLY
+			);
+		} );
+
+		test( 'ignores a region-scoped Google Consent Mode update grant', async ( {
+			page,
+		} ) => {
+			const requests = await stubTracker( page );
+			await preloadGcmDefaults( page );
+
+			await page.goto( postUrl );
+			await page.evaluate( () =>
+				window.gtag( 'consent', 'update', {
+					analytics_storage: 'granted',
+					region: [ 'US' ],
+				} )
+			);
+			await settle( page );
+
+			expect( requests ).toHaveLength( 0 );
+		} );
+
+		test( 'applies a region-scoped Google Consent Mode update denial after an explicit grant', async ( {
+			page,
+		} ) => {
+			const requests = await stubTracker( page );
+			await preloadGcmDefaults( page );
+
+			await page.goto( postUrl );
+			await page.evaluate( () =>
+				window.hubspotFormBlockConsent.push( { analytics: true } )
+			);
+			await expect.poll( () => requests.length ).toBe( 1 );
+
+			await page.evaluate( () =>
+				window.gtag( 'consent', 'update', {
+					analytics_storage: 'denied',
+					region: [ 'DE' ],
+				} )
+			);
+
+			await expect
+				.poll( () => page.evaluate( () => window._hsp ) )
+				.toContainEqual( [ 'revokeCookieConsent' ] );
+			expect( ( await lastHubSpotConsent( page ) ).analytics ).toBe(
+				false
+			);
+		} );
+
+		test( 'reads the WP Consent API again when a banner defines the consent type later', async ( {
+			page,
+		} ) => {
+			const requests = await stubTracker( page );
+			await stubWpConsentApi( page, { noType: true } );
+			await preloadGcmDefaults( page, [ 'b' ] );
+
+			await page.goto( postUrl );
+			await settle( page );
+			expect( requests ).toHaveLength( 0 );
+
+			await page.evaluate( () => {
+				window.wp_consent_type = 'optin';
+				window.__consent.statistics = 'allow';
+				window.wp_has_consent = ( category ) =>
+					window.__consent[ category ] === 'allow';
+				document.dispatchEvent(
+					new Event( 'wp_consent_type_defined' )
+				);
+			} );
+
+			await expect.poll( () => requests.length ).toBe( 1 );
+			expect( await lastHubSpotConsent( page ) ).toEqual(
+				ANALYTICS_ONLY
+			);
 		} );
 
 		test( 'undoes a doNotTrack queued on the same page when analytics is granted', async ( {
