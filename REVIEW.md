@@ -30,4 +30,5 @@ Cap at 3. Comment wording only when it describes removed or replaced behaviour.
 
 ## Learned
 
+- 2026-11-22: Accepted: the deferred WP Consent API read on `wp_consent_type_defined` counts as explicit and may overwrite an earlier queue or GCM choice, because banners using that hook set the type before the visitor can choose. Do not re-raise.
 - 2026-11-22: Accepted limits for consent mode: no public read API for Google Consent Mode, so GTM-template CMPs need the documented GTM tag; the WP Consent API reports everything granted until a CMP sets the consent type.
