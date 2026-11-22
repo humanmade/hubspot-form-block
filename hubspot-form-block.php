@@ -43,7 +43,11 @@ function get_tracking_mode() : string {
 
 	$mode = apply_filters( 'hubspot_form_block_tracking_mode', $mode );
 
-	return in_array( $mode, [ 'consent', 'always', 'never' ], true ) ? $mode : 'always';
+	if ( ! in_array( $mode, [ 'consent', 'always', 'never' ], true ) ) {
+		$mode = function_exists( 'wp_has_consent' ) ? 'consent' : 'always';
+	}
+
+	return $mode;
 }
 
 /**
