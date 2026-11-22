@@ -141,6 +141,41 @@ function enqueue_scripts() {
 
 add_action( 'wp_enqueue_scripts', __NAMESPACE__ . '\\enqueue_scripts' );
 
+/**
+ * Declares WP Consent API compliance and registers HubSpot's tracker cookies.
+ *
+ * Nothing is registered when the tracker never loads.
+ */
+function register_consent_api() {
+	if ( ! function_exists( 'wp_has_consent' ) || 'never' === get_tracking_mode() ) {
+		return;
+	}
+
+	add_filter( 'wp_consent_api_registered_' . plugin_basename( __FILE__ ), '__return_true' );
+
+	if ( ! function_exists( 'wp_add_cookie_info' ) ) {
+		return;
+	}
+
+	$six_months = __( '6 months', 'hubspot-form-block' );
+	$cookies    = [
+		[ '__hstc', 'statistics', $six_months, __( 'Main HubSpot tracking cookie. Holds the domain, first, last and current visit times, and session number.', 'hubspot-form-block' ), __( 'Visitor ID', 'hubspot-form-block' ) ],
+		[ 'hubspotutk', 'statistics', $six_months, __( "Keeps track of a visitor's identity. Passed to HubSpot on form submission to deduplicate contacts.", 'hubspot-form-block' ), __( 'Visitor ID', 'hubspot-form-block' ) ],
+		[ '__hssc', 'statistics', __( '30 minutes', 'hubspot-form-block' ), __( 'Tracks sessions.', 'hubspot-form-block' ), '' ],
+		[ '__hssrc', 'statistics', __( 'Session', 'hubspot-form-block' ), __( 'Tells HubSpot whether the visitor has restarted their browser.', 'hubspot-form-block' ), '' ],
+		[ 'messagesUtk', 'preferences', $six_months, __( "Recognises visitors who chat through HubSpot's chat tool.", 'hubspot-form-block' ), __( 'Visitor ID', 'hubspot-form-block' ) ],
+		[ '__hs_do_not_track', 'functional', $six_months, __( 'Stops the HubSpot tracking code sending information to HubSpot.', 'hubspot-form-block' ), '' ],
+	];
+
+	foreach ( $cookies as $cookie ) {
+		list( $name, $category, $expires, $function, $personal_data ) = $cookie;
+
+		wp_add_cookie_info( $name, 'HubSpot', $category, $expires, $function, $personal_data );
+	}
+}
+
+add_action( 'init', __NAMESPACE__ . '\\register_consent_api' );
+
 function rest_api() {
 	register_setting(
 		'hubspot_embed',
