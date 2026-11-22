@@ -51,8 +51,8 @@ function get_tracking_setting() : string {
  * @param string|null $setting Tracking setting. Read with get_tracking_setting() when null.
  * @return string
  */
-function get_tracking_mode( ?string $setting = null ) : string {
-	$mode = $setting ?? get_tracking_setting();
+function get_tracking_mode( $setting = null ) : string {
+	$mode = null === $setting ? get_tracking_setting() : $setting;
 
 	if ( ! in_array( $mode, [ 'consent', 'always', 'never' ], true ) ) {
 		$mode = function_exists( 'wp_has_consent' ) ? 'consent' : 'always';
