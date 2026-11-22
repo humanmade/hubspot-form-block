@@ -29,6 +29,41 @@ Features:
 - Hubspot tracking JS loaded in footer based on global Portal ID setting
 - Deferred script loading for performance
 
+= Consent and tracking =
+
+Forms always load. The tracking setting controls only HubSpot's tracking script (hs-scripts.com), which also carries HubSpot's chat, cookie banner and ads features. Set it in the block inspector under Global Settings, HubSpot tracking.
+
+* Automatic (default): waits for consent when the WP Consent API plugin is active, and otherwise loads on every page.
+* Wait for consent: loads the script once the visitor consents.
+* Load on every page: always loads the script.
+* Don't load: never loads the script.
+
+Developers can change the resolved mode with the `hubspot_form_block_tracking_mode` filter. It receives `consent`, `always` or `never`.
+
+When waiting for consent, the script loads once any of HubSpot's three categories (analytics, advertisement, functionality) is granted. HubSpot's own cookie banner is turned off, and the plugin passes the choice to HubSpot with `setHubSpotConsent`. If analytics is not granted, the plugin also tells HubSpot not to track. Withdrawing analytics clears HubSpot's cookies.
+
+The categories map like this:
+
+* WP Consent API `statistics` and Google Consent Mode `analytics_storage` map to HubSpot `analytics`.
+* WP Consent API `marketing` and Google Consent Mode `ad_storage` map to HubSpot `advertisement`.
+* WP Consent API `preferences` and Google Consent Mode `functionality_storage` map to HubSpot `functionality`.
+
+The plugin registers HubSpot's cookies with the WP Consent API, so they show in cookie policies built from it.
+
+Google Consent Mode: the plugin reads `gtag( 'consent', ... )` commands from the `dataLayer`. Region-scoped commands only count when they deny consent, because the visitor's region is unknown. Some consent tools use Google Tag Manager consent templates and may not write to the `dataLayer`. For these, add a GTM Custom HTML tag that requires `analytics_storage` consent (under Additional consent checks) and fires on consent update, with this code:
+
+`window.hubspotFormBlockConsent = window.hubspotFormBlockConsent || [];`
+`window.hubspotFormBlockConsent.push( { analytics: true } );`
+
+JavaScript API: a custom consent banner can report consent with `window.hubspotFormBlockConsent.push( { analytics, advertisement, functionality } )`. Each value is a boolean, and you can leave out the ones that did not change. It is safe to call before the plugin script loads. The latest change wins, whichever source it came from.
+
+Things to know:
+
+* In consent and never modes the `hs-script-loader` script handle is not enqueued. Code that dequeues or filters that handle will not see it.
+* Before consent, form submissions are not linked to the visitor's earlier page views.
+* The forms embed still makes requests to HubSpot's form servers. HubSpot's CDN also sets the `__cf_bm` bot-protection cookie, which is strictly necessary.
+* The WP Consent API reports consent for everything until a banner sets the consent type. A banner that sets it late must use the API's wait-for hook (`window.waitfor_consent_hook`).
+
 Styling forms:
 
 Forms can be styled from within the Hubspot dashboard, or by overriding the CSS variables defined on this page.
