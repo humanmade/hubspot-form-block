@@ -1,0 +1,33 @@
+# Review
+
+## What failure looks like here
+
+- A form that does not render, or renders twice, on the front end (HubSpot injects DOM inline after `hs-form-event:on-ready`).
+- HubSpot's tracking script (`hs-scripts.com`) loading, or setting cookies, before the visitor consents when the site is in consent mode. Or the opposite: a visitor who consented is not tracked.
+- Block attributes (portal ID, region, form ID) reaching script URLs or inline `<script>` blocks without validation.
+- `render.php` changes that are not copied to `build/` (`--webpack-copy-php` must stay on `build`/`start`).
+
+## Always check
+
+- Plugin header says Requires PHP 7.0 and Requires at least 6.1: no nullable/void types, short list syntax or WP 6.3+ only APIs without a fallback.
+- Script loading works in block themes, where templates render before `wp_head`, and in classic themes.
+- Editor controls that write site settings are gated by `canUser( 'update', 'settings' )`.
+- Playwright tests stub third-party network (`page.route`) instead of depending on HubSpot being reachable; tests run with `workers: 1` and share site options, so each spec restores what it changes.
+- Consent logic in `src/consent.js`: ordering across sources, queue replay before `DOMContentLoaded`, and HubSpot `_hsq`/`_hsp` commands queued before the async tracker runs.
+
+## Paths that need a person
+
+- `.github/workflows/` (release, build-and-release, PR Playground preview has had a script-injection fix)
+- `src/consent.js` and the tracking-mode code in `hubspot-form-block.php` (privacy and consent compliance)
+
+## Skip
+
+- `build/`, `package-lock.json`, `playwright-report/`, `test-results/`, `artifacts/`
+
+## Nits
+
+Cap at 3. Comment wording only when it describes removed or replaced behaviour.
+
+## Learned
+
+- 2026-11-22: Accepted limits for consent mode: no public read API for Google Consent Mode, so GTM-template CMPs need the documented GTM tag; the WP Consent API reports everything granted until a CMP sets the consent type.
