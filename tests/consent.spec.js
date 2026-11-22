@@ -341,6 +341,194 @@ test.describe( 'HubSpot Form Block consent and tracking', () => {
 			await expect.poll( () => requests.length ).toBe( 1 );
 		} );
 
+		test( 'keeps reading Google Consent Mode after window.dataLayer is replaced', async ( {
+			page,
+		} ) => {
+			const requests = await stubTracker( page );
+
+			await page.goto( postUrl );
+			await settle( page );
+			expect( requests ).toHaveLength( 0 );
+
+			await page.evaluate( () => {
+				window.dataLayer = [];
+				function gtag() {
+					window.dataLayer.push( arguments );
+				}
+				gtag( 'consent', 'update', {
+					analytics_storage: 'granted',
+				} );
+			} );
+
+			await expect.poll( () => requests.length ).toBe( 1 );
+		} );
+
+		test( 'keeps reading Google Consent Mode after the dataLayer push is replaced', async ( {
+			page,
+		} ) => {
+			const requests = await stubTracker( page );
+
+			await page.goto( postUrl );
+			await settle( page );
+			expect( requests ).toHaveLength( 0 );
+
+			const lengths = await page.evaluate( () => {
+				const dl = window.dataLayer;
+				dl.push = function () {
+					return Array.prototype.push.apply( dl, arguments );
+				};
+				const before = window.dataLayer.length;
+				function gtag() {
+					window.dataLayer.push( arguments );
+				}
+				gtag( 'consent', 'update', {
+					analytics_storage: 'granted',
+				} );
+				return [ before, window.dataLayer.length ];
+			} );
+
+			await expect.poll( () => requests.length ).toBe( 1 );
+			expect( lengths[ 1 ] ).toBeGreaterThan( lengths[ 0 ] );
+		} );
+
+		test( 'does not loop when a replaced dataLayer push calls the previous one', async ( {
+			page,
+		} ) => {
+			const requests = await stubTracker( page );
+
+			await page.goto( postUrl );
+			await settle( page );
+			expect( requests ).toHaveLength( 0 );
+
+			const result = await page.evaluate( () => {
+				const dl = window.dataLayer;
+				const prev = dl.push;
+				let calls = 0;
+				dl.push = function () {
+					calls++;
+					return prev.apply( dl, arguments );
+				};
+				const before = dl.length;
+				function gtag() {
+					window.dataLayer.push( arguments );
+				}
+				gtag( 'consent', 'update', {
+					analytics_storage: 'granted',
+				} );
+				return { calls, delta: dl.length - before };
+			} );
+
+			await expect.poll( () => requests.length ).toBe( 1 );
+			expect( result ).toEqual( { calls: 1, delta: 1 } );
+		} );
+
+		test( 'a dataLayer push still works when a consent entry cannot be read', async ( {
+			page,
+		} ) => {
+			const requests = await stubTracker( page );
+			const errors = [];
+			page.on( 'pageerror', ( error ) => errors.push( error.message ) );
+
+			await page.goto( postUrl );
+			await settle( page );
+
+			const result = await page.evaluate( () => {
+				const bad = {
+					get 0() {
+						throw new Error( 'unreadable entry' );
+					},
+				};
+				const before = window.dataLayer.length;
+				let threw = false;
+				try {
+					window.dataLayer.push( bad );
+				} catch ( error ) {
+					threw = true;
+				}
+				return {
+					threw,
+					delta: window.dataLayer.length - before,
+				};
+			} );
+			expect( result ).toEqual( { threw: false, delta: 1 } );
+
+			await page.evaluate( () => {
+				function gtag() {
+					window.dataLayer.push( arguments );
+				}
+				gtag( 'consent', 'update', {
+					analytics_storage: 'granted',
+				} );
+			} );
+
+			await expect.poll( () => requests.length ).toBe( 1 );
+			expect( errors ).toEqual( [
+				expect.stringContaining( 'unreadable entry' ),
+			] );
+		} );
+
+		test( 'keeps the tracker off if a consent source throws during start-up, until an explicit grant', async ( {
+			page,
+		} ) => {
+			const requests = await stubTracker( page );
+			const errors = [];
+			page.on( 'pageerror', ( error ) => errors.push( error.message ) );
+			await page.addInitScript( () => {
+				window.wp_consent_type = 'optin';
+				window.wp_has_consent = () => {
+					throw new Error( 'consent source failed' );
+				};
+			} );
+
+			await page.goto( postUrl );
+			await settle( page );
+			expect( requests ).toHaveLength( 0 );
+
+			await page.evaluate( () => {
+				function gtag() {
+					window.dataLayer.push( arguments );
+				}
+				gtag( 'consent', 'default', {
+					analytics_storage: 'granted',
+					ad_storage: 'granted',
+					functionality_storage: 'granted',
+				} );
+			} );
+			await settle( page );
+			expect( requests ).toHaveLength( 0 );
+
+			await page.evaluate( () =>
+				window.hubspotFormBlockConsent.push( { analytics: true } )
+			);
+
+			await expect.poll( () => requests.length ).toBe( 1 );
+			expect( errors ).toEqual( [
+				expect.stringContaining( 'consent source failed' ),
+			] );
+		} );
+
+		test( 'works when the page declared dataLayer with var', async ( {
+			page,
+		} ) => {
+			const requests = await stubTracker( page );
+			await page.addInitScript( { content: 'var dataLayer = [];' } );
+
+			await page.goto( postUrl );
+			await settle( page );
+			expect( requests ).toHaveLength( 0 );
+
+			await page.evaluate( () => {
+				function gtag() {
+					window.dataLayer.push( arguments );
+				}
+				gtag( 'consent', 'update', {
+					analytics_storage: 'granted',
+				} );
+			} );
+
+			await expect.poll( () => requests.length ).toBe( 1 );
+		} );
+
 		test( 'ignores a region-scoped Google Consent Mode grant', async ( {
 			page,
 		} ) => {
@@ -467,8 +655,11 @@ test.describe( 'HubSpot Form Block consent and tracking', () => {
 			page,
 		} ) => {
 			const requests = await stubTracker( page );
-			await preloadGcmDefaults( page );
 			await page.addInitScript( () => {
+				window.dataLayer = [];
+				window.gtag = function () {
+					window.dataLayer.push( arguments );
+				};
 				window.gtag( 'consent', 'update', {
 					analytics_storage: 'denied',
 				} );
@@ -486,8 +677,11 @@ test.describe( 'HubSpot Form Block consent and tracking', () => {
 			page,
 		} ) => {
 			const requests = await stubTracker( page );
-			await preloadGcmDefaults( page );
 			await page.addInitScript( () => {
+				window.dataLayer = [];
+				window.gtag = function () {
+					window.dataLayer.push( arguments );
+				};
 				window.hubspotFormBlockConsent = [ { analytics: false } ];
 				window.gtag( 'consent', 'update', {
 					analytics_storage: 'denied',

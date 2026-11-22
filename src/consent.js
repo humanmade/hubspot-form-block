@@ -199,18 +199,87 @@
 		update( partial, rank );
 	}
 
-	function initDataLayer() {
-		const dataLayer = ( window.dataLayer = window.dataLayer || [] );
+	// Throws the error outside the current call, so it is reported without
+	// stopping the caller.
+	function report( error ) {
+		setTimeout( () => {
+			throw error;
+		} );
+	}
 
-		Array.prototype.slice.call( dataLayer ).forEach( fromConsentMode );
+	function readConsentMode( entries ) {
+		batch( () =>
+			entries.forEach( ( entry ) => {
+				try {
+					fromConsentMode( entry );
+				} catch ( error ) {
+					report( error );
+				}
+			} )
+		);
+	}
 
-		const originalPush = dataLayer.push;
-		dataLayer.push = function () {
-			batch( () =>
-				Array.prototype.forEach.call( arguments, fromConsentMode )
-			);
-			return originalPush.apply( window.dataLayer, arguments );
+	// Returns a push that reads consent commands, then calls `push`.
+	function wrapPush( push ) {
+		return function ( ...entries ) {
+			readConsentMode( entries );
+			return push.apply( this, entries );
 		};
+	}
+
+	const watched = new WeakSet();
+
+	// Reads the commands already in a dataLayer array and the ones pushed to it
+	// later. A push the page sets afterwards, as Google Tag Manager does when it
+	// loads, is wrapped as well.
+	function watchDataLayer( dataLayer ) {
+		if ( ! Array.isArray( dataLayer ) || watched.has( dataLayer ) ) {
+			return;
+		}
+		watched.add( dataLayer );
+
+		readConsentMode( dataLayer.slice() );
+
+		let push = wrapPush( dataLayer.push );
+		try {
+			Object.defineProperty( dataLayer, 'push', {
+				configurable: true,
+				get: () => push,
+				set: ( value ) => {
+					if ( typeof value === 'function' && value !== push ) {
+						push = wrapPush( value );
+					}
+				},
+			} );
+		} catch ( error ) {
+			try {
+				dataLayer.push = push;
+			} catch ( assignError ) {}
+		}
+	}
+
+	function initDataLayer() {
+		if ( typeof window.dataLayer === 'undefined' ) {
+			window.dataLayer = [];
+		}
+
+		let dataLayer = window.dataLayer;
+		watchDataLayer( dataLayer );
+
+		// Watches an array assigned to window.dataLayer later. Defining the
+		// property fails, and is skipped, when the page declared dataLayer
+		// with `var`.
+		try {
+			Object.defineProperty( window, 'dataLayer', {
+				configurable: true,
+				enumerable: true,
+				get: () => dataLayer,
+				set: ( value ) => {
+					dataLayer = value;
+					watchDataLayer( value );
+				},
+			} );
+		} catch ( error ) {}
 	}
 
 	// Reads every category from the WP Consent API. Without a consent type no
@@ -277,12 +346,20 @@
 	}
 
 	// Runs `fn` with its updates written to a new store, and returns the store.
+	// If `fn` throws, the store denies every category as an explicit choice,
+	// so only a later explicit grant loads the tracker.
 	function replay( fn ) {
-		const store = createStore();
+		let store = createStore();
 
 		current = store;
 		try {
 			fn();
+		} catch ( error ) {
+			store = createStore();
+			CATEGORIES.forEach( ( key ) => {
+				store[ key ] = { value: false, rank: RANK_CHOICE };
+			} );
+			report( error );
 		} finally {
 			current = state;
 		}
