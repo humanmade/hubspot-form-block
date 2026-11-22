@@ -1418,6 +1418,105 @@ test.describe( 'HubSpot Form Block consent and tracking', () => {
 			expect( calls[ calls.length - 1 ][ 1 ].analytics ).toBe( false );
 		} );
 
+		test( "leaves consent to HubSpot's banner when no consent tool is present", async ( {
+			page,
+		} ) => {
+			const requests = await stubTracker( page );
+			await stubWpConsentApi( page, { noType: true } );
+			await allowUntypedWpConsent( page );
+
+			await page.goto( postUrl );
+			await expect.poll( () => requests.length ).toBe( 1 );
+			await settle( page );
+
+			expect(
+				await page.evaluate( () => window.disableHubSpotCookieBanner )
+			).toBeUndefined();
+			const hsp = await page.evaluate( () => window._hsp || [] );
+			expect(
+				hsp.filter( ( entry ) => entry[ 0 ] === 'setHubSpotConsent' )
+			).toHaveLength( 0 );
+			const hsq = await page.evaluate( () => window._hsq || [] );
+			expect( hsq ).not.toContainEqual( [ 'doNotTrack' ] );
+		} );
+
+		test( "takes over from HubSpot's banner when a consent tool denies", async ( {
+			page,
+		} ) => {
+			const requests = await stubTracker( page );
+			await stubWpConsentApi( page, { noType: true } );
+			await allowUntypedWpConsent( page );
+
+			await page.goto( postUrl );
+			await expect.poll( () => requests.length ).toBe( 1 );
+
+			await page.evaluate( () =>
+				window.hubspotFormBlockConsent.push( { analytics: false } )
+			);
+
+			await expect
+				.poll( () => page.evaluate( () => window._hsp ) )
+				.toContainEqual( [ 'revokeCookieConsent' ] );
+			expect( await lastHubSpotConsent( page ) ).toEqual( {
+				analytics: false,
+				advertisement: true,
+				functionality: true,
+			} );
+			expect( await page.evaluate( () => window._hsq ) ).toContainEqual( [
+				'doNotTrack',
+			] );
+		} );
+
+		test( "takes over from HubSpot's banner when a consent tool grants", async ( {
+			page,
+		} ) => {
+			const requests = await stubTracker( page );
+			await stubWpConsentApi( page, { noType: true } );
+			await allowUntypedWpConsent( page );
+
+			await page.goto( postUrl );
+			await expect.poll( () => requests.length ).toBe( 1 );
+
+			await page.evaluate( () =>
+				window.hubspotFormBlockConsent.push( { analytics: true } )
+			);
+
+			await expect
+				.poll( () => page.evaluate( () => window._hsp ) )
+				.toContainEqual( [
+					'setHubSpotConsent',
+					{
+						analytics: true,
+						advertisement: true,
+						functionality: true,
+					},
+				] );
+			expect(
+				await page.evaluate( () => window._hsp )
+			).not.toContainEqual( [ 'revokeCookieConsent' ] );
+		} );
+
+		test( "turns HubSpot's banner off when a Consent Mode default is present with the untyped answer", async ( {
+			page,
+		} ) => {
+			const requests = await stubTracker( page );
+			await stubWpConsentApi( page, { noType: true } );
+			await allowUntypedWpConsent( page );
+			await preloadGcmDefaults( page, [ 'd' ] );
+
+			await page.goto( postUrl );
+			await expect.poll( () => requests.length ).toBe( 1 );
+
+			expect(
+				await page.evaluate( () => window.disableHubSpotCookieBanner )
+			).toBe( true );
+			expect( await lastHubSpotConsent( page ) ).toEqual( {
+				analytics: true,
+				advertisement: true,
+				functionality: true,
+			} );
+		} );
+
 		test( 'treats a WP Consent API change event before the consent type is defined as a choice', async ( {
 			page,
 		} ) => {

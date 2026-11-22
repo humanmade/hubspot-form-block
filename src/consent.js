@@ -14,6 +14,11 @@
  * updates, and the WP Consent API once a consent type is set. Between equal
  * ranks the most recent change wins.
  *
+ * When every accepted value comes from the WP Consent API with no consent
+ * type, no consent tool is in charge. The tracker then loads with HubSpot's
+ * own banner left on and no consent passed to it, until another source
+ * reports a choice.
+ *
  * At start-up each source is replayed into its own store first, in its own
  * order. The stores are then merged: the higher rank wins and, between equal
  * ranks, a denial wins, because the order of the sources is unknown.
@@ -57,6 +62,9 @@
 	let initialising = true;
 	let batchDepth = 0;
 	let loaded = false;
+	// Whether the tracker was loaded with no consent tool, leaving consent to
+	// HubSpot's own banner.
+	let leftToHubSpot = false;
 	let pushedState = '';
 	let wasAnalytics = false;
 	// Whether HubSpot has last been told it may track: null until first told.
@@ -86,9 +94,27 @@
 		} );
 	}
 
+	// Whether every accepted value is the WP Consent API's answer with no
+	// consent type, so no consent tool manages consent.
+	function noConsentTool() {
+		return CATEGORIES.every(
+			( key ) => state[ key ].rank <= RANK_NO_BANNER
+		);
+	}
+
 	function apply() {
 		if ( ! loaded ) {
 			if ( ! CATEGORIES.some( ( key ) => consent[ key ] ) ) {
+				return;
+			}
+
+			// With no consent tool, HubSpot's own banner decides, if the portal
+			// has one.
+			if ( noConsentTool() ) {
+				loadScripts();
+				loaded = true;
+				leftToHubSpot = true;
+				wasAnalytics = consent.analytics;
 				return;
 			}
 
@@ -101,12 +127,21 @@
 			loadScripts();
 			loaded = true;
 			pushedState = JSON.stringify( consent );
-		} else if ( JSON.stringify( consent ) !== pushedState ) {
-			pushTo( '_hsp', [ 'setHubSpotConsent', { ...consent } ] );
-			if ( wasAnalytics && ! consent.analytics ) {
-				pushTo( '_hsp', [ 'revokeCookieConsent' ] );
+		} else {
+			if ( leftToHubSpot ) {
+				if ( noConsentTool() ) {
+					return;
+				}
+				leftToHubSpot = false;
 			}
-			pushedState = JSON.stringify( consent );
+
+			if ( JSON.stringify( consent ) !== pushedState ) {
+				pushTo( '_hsp', [ 'setHubSpotConsent', { ...consent } ] );
+				if ( wasAnalytics && ! consent.analytics ) {
+					pushTo( '_hsp', [ 'revokeCookieConsent' ] );
+				}
+				pushedState = JSON.stringify( consent );
+			}
 		}
 
 		if ( ! consent.analytics && trackingAllowed !== false ) {
@@ -129,6 +164,9 @@
 	function withdraws() {
 		if ( ! loaded ) {
 			return false;
+		}
+		if ( leftToHubSpot ) {
+			return ! noConsentTool();
 		}
 		const told = JSON.parse( pushedState );
 		return CATEGORIES.some( ( key ) => told[ key ] && ! consent[ key ] );
