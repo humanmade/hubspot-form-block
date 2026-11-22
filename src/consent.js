@@ -3,7 +3,14 @@
  *
  * Consent comes from three sources: the `window.hubspotFormBlockConsent`
  * queue, Google Consent Mode commands pushed to `window.dataLayer`, and the
- * WP Consent API. The most recent change wins for each category.
+ * WP Consent API.
+ *
+ * Explicit choices override defaults. These are queue entries, Google Consent
+ * Mode updates, and WP Consent API values once a banner sets the consent
+ * type. Google Consent Mode defaults never override an explicit choice, and
+ * region-scoped default denials beat global defaults. At start-up the sources
+ * are read in a fixed order: queue, Google Consent Mode, WP Consent API.
+ * After that the most recent explicit change wins.
  */
 ( function () {
 	const CATEGORIES = [ 'analytics', 'advertisement', 'functionality' ];
@@ -26,6 +33,9 @@
 	// Categories set explicitly, which a Google Consent Mode default must not
 	// override.
 	const explicit = new Set();
+	// Categories denied by a region-scoped Google Consent Mode default, which a
+	// global default must not override.
+	const regionDenied = new Set();
 	let initialising = true;
 	let loaded = false;
 	let pushedState = '';
@@ -138,16 +148,26 @@
 		// The visitor's region is unknown, so region-scoped commands only
 		// apply when they deny consent.
 		const regional = !! entry[ 2 ].region;
+		const isDefault = entry[ 1 ] === 'default';
 		const partial = {};
 
 		Object.keys( GCM_KEYS ).forEach( ( key ) => {
+			const category = GCM_KEYS[ key ];
 			const value = entry[ 2 ][ key ];
+
+			if ( isDefault && ! regional && regionDenied.has( category ) ) {
+				return;
+			}
+
 			if ( value === 'denied' || ( value === 'granted' && ! regional ) ) {
-				partial[ GCM_KEYS[ key ] ] = value === 'granted';
+				partial[ category ] = value === 'granted';
+				if ( isDefault && regional ) {
+					regionDenied.add( category );
+				}
 			}
 		} );
 
-		update( partial, { isDefault: entry[ 1 ] === 'default' } );
+		update( partial, { isDefault } );
 	}
 
 	function initDataLayer() {
@@ -162,26 +182,35 @@
 		};
 	}
 
-	// Reads the given HubSpot categories from the WP Consent API.
-	function readWpConsent( keys = CATEGORIES ) {
+	// Reads every category from the WP Consent API. Without a consent type no
+	// banner manages consent and the API reports everything as granted, so
+	// those values only count as defaults.
+	function readWpConsent() {
 		const partial = {};
 
-		keys.forEach( ( key ) => {
+		CATEGORIES.forEach( ( key ) => {
 			partial[ key ] = !! window.wp_has_consent( WP_CATEGORIES[ key ] );
 		} );
 
-		update( partial );
+		update( partial, {
+			isDefault:
+				! window.wp_consent_type && ! window.wp_fallback_consent_type,
+		} );
 	}
 
-	// Reads only the categories named in the change event's detail.
+	// Takes the values from the change event's detail.
 	function readWpConsentChange( event ) {
-		const changed = Object.keys( ( event && event.detail ) || {} );
+		const detail = ( event && event.detail ) || {};
+		const partial = {};
 
-		readWpConsent(
-			CATEGORIES.filter( ( key ) =>
-				changed.includes( WP_CATEGORIES[ key ] )
-			)
-		);
+		CATEGORIES.forEach( ( key ) => {
+			const value = detail[ WP_CATEGORIES[ key ] ];
+			if ( value === 'allow' || value === 'deny' ) {
+				partial[ key ] = value === 'allow';
+			}
+		} );
+
+		update( partial );
 	}
 
 	function initWpConsent() {
@@ -202,7 +231,7 @@
 		) {
 			document.addEventListener(
 				'wp_consent_type_defined',
-				() => readWpConsent(),
+				readWpConsent,
 				{
 					once: true,
 				}

@@ -85,19 +85,28 @@ async function settle( page ) {
  * @param {import('@playwright/test').Page} page
  * @param {Object}                          options
  * @param {boolean}                         options.waitForHook Wait for the consent type to be defined.
+ * @param {boolean}                         options.noType      Leave the consent type unset, so everything is reported as granted.
  */
-function stubWpConsentApi( page, { waitForHook = false } = {} ) {
-	return page.addInitScript( ( hook ) => {
-		window.__consent = {};
-		if ( hook ) {
-			window.waitfor_consent_hook = true;
-			window.wp_has_consent = () => true;
-		} else {
-			window.wp_consent_type = 'optin';
-			window.wp_has_consent = ( category ) =>
-				window.__consent[ category ] === 'allow';
-		}
-	}, waitForHook );
+function stubWpConsentApi(
+	page,
+	{ waitForHook = false, noType = false } = {}
+) {
+	return page.addInitScript(
+		( { hook, untyped } ) => {
+			window.__consent = {};
+			if ( hook ) {
+				window.waitfor_consent_hook = true;
+				window.wp_has_consent = () => true;
+			} else if ( untyped ) {
+				window.wp_has_consent = () => true;
+			} else {
+				window.wp_consent_type = 'optin';
+				window.wp_has_consent = ( category ) =>
+					window.__consent[ category ] === 'allow';
+			}
+		},
+		{ hook: waitForHook, untyped: noType }
+	);
 }
 
 test.describe( 'HubSpot Form Block consent and tracking', () => {
@@ -403,6 +412,87 @@ test.describe( 'HubSpot Form Block consent and tracking', () => {
 
 			await page.evaluate( () =>
 				document.dispatchEvent( new Event( 'wp_consent_type_defined' ) )
+			);
+
+			await expect.poll( () => requests.length ).toBe( 1 );
+		} );
+
+		test( 'lets a Google Consent Mode default deny what an untyped WP Consent API reports as granted', async ( {
+			page,
+		} ) => {
+			const requests = await stubTracker( page );
+			await stubWpConsentApi( page, { noType: true } );
+			await page.addInitScript( () => {
+				window.dataLayer = [];
+				window.gtag = function () {
+					window.dataLayer.push( arguments );
+				};
+			} );
+
+			await page.goto( postUrl );
+			await expect.poll( () => requests.length ).toBe( 1 );
+
+			await page.evaluate( () =>
+				window.gtag( 'consent', 'default', {
+					analytics_storage: 'denied',
+				} )
+			);
+
+			await expect
+				.poll( () => page.evaluate( () => window._hsp ) )
+				.toContainEqual( [ 'revokeCookieConsent' ] );
+			const hsp = await page.evaluate( () => window._hsp );
+			const calls = hsp.filter(
+				( entry ) => entry[ 0 ] === 'setHubSpotConsent'
+			);
+			expect( calls[ calls.length - 1 ][ 1 ].analytics ).toBe( false );
+		} );
+
+		test( 'ignores a WP Consent API change event that arrives before the consent type is defined', async ( {
+			page,
+		} ) => {
+			const requests = await stubTracker( page );
+			await stubWpConsentApi( page, { waitForHook: true } );
+
+			await page.goto( postUrl );
+			await page.evaluate( () =>
+				document.dispatchEvent(
+					new CustomEvent( 'wp_listen_for_consent_change', {
+						detail: { statistics: 'deny' },
+					} )
+				)
+			);
+			await settle( page );
+
+			expect( requests ).toHaveLength( 0 );
+		} );
+
+		test( 'gives a region-scoped Google Consent Mode denial precedence over a global default', async ( {
+			page,
+		} ) => {
+			const requests = await stubTracker( page );
+			await page.addInitScript( () => {
+				window.dataLayer = [];
+				window.gtag = function () {
+					window.dataLayer.push( arguments );
+				};
+				window.gtag( 'consent', 'default', {
+					analytics_storage: 'denied',
+					region: [ 'DE' ],
+				} );
+				window.gtag( 'consent', 'default', {
+					analytics_storage: 'granted',
+				} );
+			} );
+
+			await page.goto( postUrl );
+			await settle( page );
+			expect( requests ).toHaveLength( 0 );
+
+			await page.evaluate( () =>
+				window.gtag( 'consent', 'update', {
+					analytics_storage: 'granted',
+				} )
 			);
 
 			await expect.poll( () => requests.length ).toBe( 1 );
