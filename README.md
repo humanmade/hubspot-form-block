@@ -38,11 +38,11 @@ Portal ID and region can be set globally via **Settings → General** in the Wor
 Forms always load. The tracking setting controls only HubSpot's tracking script (`hs-scripts.com`). That script also carries HubSpot's chat, cookie banner and ads features. Set it in the block inspector under **Global Settings → HubSpot tracking**.
 
 - **Automatic** (default): waits for consent when the WP Consent API plugin is active, and otherwise loads on every page. If the WP Consent API is active but no banner sets a consent type, Automatic treats that as no banner and loads HubSpot.
-- **Wait for consent**: loads the script once the visitor consents. It ignores the WP Consent API's answer when no banner sets a consent type, and only loads after an explicit grant. Choose this if your banner is based on Google Tag Manager.
+- **Wait for consent**: loads the script once the visitor consents. It ignores the WP Consent API's answer when no banner sets a consent type. A Google Consent Mode default that grants consent still loads the script. Choose this if your banner is based on Google Tag Manager.
 - **Load on every page**: always loads the script.
 - **Don't load**: never loads the script.
 
-Developers can change the resolved mode with the `hubspot_form_block_tracking_mode` filter. It receives the setting (`auto`, `consent`, `always` or `never`) before `auto` is resolved, and accepts the same values back. Unknown values behave like `auto`.
+Developers can change the setting with the `hubspot_form_block_tracking_mode` filter. It receives the saved setting (`auto`, `consent`, `always` or `never`) and should return one of the same values. `auto` is resolved after the filter runs. Unknown values, and values that are not strings, behave like `auto`.
 
 When waiting for consent, the script loads once any of HubSpot's three categories (analytics, advertisement, functionality) is granted. HubSpot's own cookie banner is turned off, and the plugin passes the choice to HubSpot with `setHubSpotConsent`. If analytics is not granted, the plugin also tells HubSpot not to track. Withdrawing analytics clears HubSpot's cookies. The tracker can't be unloaded once it has loaded. A later denial stops tracking, because the plugin tells HubSpot not to track and clears its cookies, but the script stays on the page until the next page view.
 
