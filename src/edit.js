@@ -238,7 +238,7 @@ export default function Edit( { attributes, setAttributes, clientId } ) {
 								trackingMode === 'always'
 									? ' ' +
 									  __(
-											'A consent plugin that uses the WP Consent API is active. Choose Wait for an external consent banner so HubSpot waits for it.',
+											'The WP Consent API plugin is active. If your consent plugin supports it, choose Wait for an external consent banner so HubSpot waits for it.',
 											'hubspot-form-block'
 									  )
 									: '' )

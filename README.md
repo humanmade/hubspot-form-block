@@ -59,7 +59,7 @@ Developers can change the setting with the `hubspot_form_block_tracking_mode` fi
 
 The plugin passes consent to HubSpot in three categories: analytics, advertisement and functionality. The script loads once any of them is granted. The plugin turns HubSpot's own cookie banner off and tells HubSpot the choice with `setHubSpotConsent`. HubSpot does no consent management of its own while its banner is off, so this is how it learns which categories are allowed. If analytics is not granted, the plugin also tells HubSpot not to track.
 
-When a visitor withdraws analytics, the plugin clears HubSpot's cookies and tells HubSpot to stop tracking. The script can't be unloaded, so it stays on the page until the next page view.
+When a visitor withdraws analytics, the plugin clears HubSpot's cookies and tells HubSpot to stop tracking. The script can't be unloaded, so it stays on the page until the next page view. The plugin can only clear HubSpot's cookies on a page where HubSpot has loaded. If a visitor withdraws consent somewhere else, for example on a later page before HubSpot loads, cookies from earlier visits stay until they expire.
 
 The plugin does not remember consent. Your banner must report the visitor's choice on every page view, not only when they click. Consent plugins that use the WP Consent API do this already.
 
@@ -83,7 +83,7 @@ The plugin also registers HubSpot's cookies with the WP Consent API, so they sho
 
 The plugin doesn't read Google Consent Mode on its own. Add two Custom HTML tags in Google Tag Manager to pass consent on.
 
-The grant tag. Under **Advanced Settings → Consent Settings**, require `analytics_storage`. Fire it on **All Pages** and on your consent tool's consent-update event, so it covers returning visitors and new choices.
+The grant tag. Under **Advanced Settings → Consent Settings**, require `analytics_storage`. Fire it on **All Pages** and on your consent tool's consent-update event. All Pages covers returning visitors when the tool restores their choice before tags fire. The update event covers new choices, and tools that restore the choice later.
 
 ```html
 <script>

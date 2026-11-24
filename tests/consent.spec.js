@@ -72,6 +72,8 @@ function stubWpConsentApi(
 			window.__consent = { ...consent };
 			if ( hook ) {
 				window.waitfor_consent_hook = true;
+				// The API sets a fallback type that must be ignored while waiting.
+				window.wp_fallback_consent_type = 'optout';
 				window.wp_has_consent = () => true;
 			} else if ( untyped ) {
 				window.wp_has_consent = () => true;
@@ -693,9 +695,7 @@ test.describe( 'HubSpot Form Block consent and tracking', () => {
 
 		await insertBlockAndOpenGlobalSettings( admin, editor, page );
 
-		const hint = page.getByText(
-			'A consent plugin that uses the WP Consent API is active.'
-		);
+		const hint = page.getByText( 'The WP Consent API plugin is active.' );
 		await expect( hint ).toBeVisible();
 
 		await page

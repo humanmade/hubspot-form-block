@@ -132,13 +132,20 @@
 			window.hubspotFormBlockConsent || [] );
 		const choice = {};
 
+		let length = 0;
 		try {
-			for ( let i = 0; i < queue.length; i++ ) {
-				merge( choice, queue[ i ] );
-			}
+			length = queue.length;
 		} catch ( error ) {
 			merge( choice, denyAll() );
 			report( error );
+		}
+		for ( let i = 0; i < length; i++ ) {
+			try {
+				merge( choice, queue[ i ] );
+			} catch ( error ) {
+				merge( choice, denyAll() );
+				report( error );
+			}
 		}
 
 		try {
