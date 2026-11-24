@@ -25,6 +25,11 @@ async function insertBlockAndOpenGlobalSettings(
 	page,
 	attributes = {}
 ) {
+	// The welcome guide can open after the preference below is set.
+	await page.addLocatorHandler(
+		page.getByRole( 'dialog', { name: /welcome/i } ),
+		( dialog ) => dialog.getByRole( 'button', { name: 'Close' } ).click()
+	);
 	await admin.createNewPost();
 	await editor.setPreferences( 'core/edit-post', { welcomeGuide: false } );
 	await editor.insertBlock( { name: 'hubspot/form', attributes } );
