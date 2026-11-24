@@ -3,8 +3,6 @@
  *
  * GTM-MTNXSKGJ is a sandbox container with these tags:
  *
- * - Ping: a Custom HTML tag on the `test_ping` event that counts in
- *   `window.gtmPing`.
  * - The "Consent Mode (Google tags)" template, setting a default of all
  *   denied on Consent Initialization, and an update of analytics, ads and
  *   functionality granted on `test_consent_template_grant`.
@@ -12,8 +10,9 @@
  *   `analytics_storage` and fires after the template's update.
  * - The README's withdrawal tag on `test_consent_withdraw`.
  *
- * The template sets consent inside GTM and does not write `gtag()` commands
- * to the `dataLayer`, so the plugin only learns about it from the grant tag.
+ * The plugin does not read the `dataLayer`. The template sets consent inside
+ * GTM, so the plugin only learns about it from the README's tags, which push
+ * to `window.hubspotFormBlockConsent`.
  */
 
 /**
@@ -53,39 +52,21 @@ function setSettings( requestUtils, data ) {
 }
 
 /**
- * Opens the test post with GTM loaded before or after the plugin's script.
- *
- * `before` adds GTM as a blocking script at the top of `<head>`, so it runs
- * before the plugin's script in the footer. `after` adds it once the page has
- * loaded.
+ * Opens the test post with GTM loaded as a blocking script at the top of
+ * `<head>`, so it runs before the plugin's script in the footer.
  *
  * @param {import('@playwright/test').Page} page
- * @param {string}                          when `before` or `after`.
  */
-async function openWithGtm( page, when ) {
-	if ( 'before' === when ) {
-		await page.route( postUrl, async ( route ) => {
-			const response = await route.fetch();
-			const body = ( await response.text() ).replace(
-				'<head>',
-				`<head>${ GTM_SNIPPET }`
-			);
-			return route.fulfill( { response, body } );
-		} );
-		await page.goto( postUrl );
-	} else {
-		await page.goto( postUrl );
-		await page.evaluate( ( id ) => {
-			window.dataLayer = window.dataLayer || [];
-			window.dataLayer.push( {
-				'gtm.start': Date.now(),
-				event: 'gtm.js',
-			} );
-			const script = document.createElement( 'script' );
-			script.src = `https://www.googletagmanager.com/gtm.js?id=${ id }`;
-			document.head.appendChild( script );
-		}, CONTAINER_ID );
-	}
+async function openWithGtm( page ) {
+	await page.route( postUrl, async ( route ) => {
+		const response = await route.fetch();
+		const body = ( await response.text() ).replace(
+			'<head>',
+			`<head>${ GTM_SNIPPET }`
+		);
+		return route.fulfill( { response, body } );
+	} );
+	await page.goto( postUrl );
 
 	await page.waitForFunction(
 		( id ) => window.google_tag_manager?.[ id ],
@@ -128,75 +109,36 @@ test.describe( 'HubSpot Form Block with Google Tag Manager', () => {
 	test.afterAll( async ( { requestUtils } ) => {
 		await setSettings( requestUtils, {
 			hubspot_embed_portal_id: 0,
-			hubspot_embed_tracking: 'auto',
+			hubspot_embed_tracking: 'always',
 		} );
 	} );
 
-	for ( const when of [ 'before', 'after' ] ) {
-		test.describe( `with GTM loaded ${ when } the plugin`, () => {
-			test( 'GTM still fires tags for dataLayer events', async ( {
-				page,
-			} ) => {
-				await stubTracker( page );
-				await openWithGtm( page, when );
+	test( 'the README tags pass on a Consent Mode template grant and withdrawal', async ( {
+		page,
+	} ) => {
+		const requests = await stubTracker( page );
+		await openWithGtm( page );
+		await settle( page );
+		expect( requests ).toHaveLength( 0 );
 
-				await pushEvent( page, 'test_ping' );
+		await pushEvent( page, 'test_consent_template_grant' );
 
-				await expect
-					.poll( () => page.evaluate( () => window.gtmPing ) )
-					.toBe( 1 );
-			} );
+		await expect.poll( () => requests.length ).toBe( 1 );
+		expect( await page.evaluate( () => window._hsp ) ).toContainEqual( [
+			'setHubSpotConsent',
+			{
+				analytics: true,
+				advertisement: false,
+				functionality: false,
+			},
+		] );
 
-			test( 'a gtag() Consent Mode grant loads the tracker', async ( {
-				page,
-			} ) => {
-				const requests = await stubTracker( page );
-				await openWithGtm( page, when );
-				await settle( page );
-				expect( requests ).toHaveLength( 0 );
+		await pushEvent( page, 'test_consent_withdraw' );
 
-				await page.evaluate( () => {
-					window.gtag = function () {
-						window.dataLayer.push( arguments );
-					};
-					window.gtag( 'consent', 'update', {
-						analytics_storage: 'granted',
-					} );
-				} );
-
-				await expect.poll( () => requests.length ).toBe( 1 );
-			} );
-
-			test( 'the README tags pass on a Consent Mode template grant and withdrawal', async ( {
-				page,
-			} ) => {
-				const requests = await stubTracker( page );
-				await openWithGtm( page, when );
-				await settle( page );
-				expect( requests ).toHaveLength( 0 );
-
-				await pushEvent( page, 'test_consent_template_grant' );
-
-				await expect.poll( () => requests.length ).toBe( 1 );
-				expect(
-					await page.evaluate( () => window._hsp )
-				).toContainEqual( [
-					'setHubSpotConsent',
-					{
-						analytics: true,
-						advertisement: false,
-						functionality: false,
-					},
-				] );
-
-				await pushEvent( page, 'test_consent_withdraw' );
-
-				await expect
-					.poll( () => page.evaluate( () => window._hsp ) )
-					.toContainEqual( [ 'revokeCookieConsent' ] );
-				const hsq = await page.evaluate( () => window._hsq );
-				expect( hsq[ hsq.length - 1 ] ).toEqual( [ 'doNotTrack' ] );
-			} );
-		} );
-	}
+		await expect
+			.poll( () => page.evaluate( () => window._hsp ) )
+			.toContainEqual( [ 'revokeCookieConsent' ] );
+		const hsq = await page.evaluate( () => window._hsq );
+		expect( hsq[ hsq.length - 1 ] ).toEqual( [ 'doNotTrack' ] );
+	} );
 } );

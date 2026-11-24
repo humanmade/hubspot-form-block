@@ -117,7 +117,7 @@ export default function Edit( { attributes, setAttributes, clientId } ) {
 			defaultRegion: settings?.hubspot_embed_region || 'eu1',
 			defaultBusinessUnitId:
 				settings?.hubspot_embed_business_unit_id || '',
-			trackingMode: settings?.hubspot_embed_tracking || 'auto',
+			trackingMode: settings?.hubspot_embed_tracking || 'always',
 		};
 	} );
 
@@ -229,25 +229,21 @@ export default function Edit( { attributes, setAttributes, clientId } ) {
 								'HubSpot tracking',
 								'hubspot-form-block'
 							) }
-							help={ __(
-								'Forms load either way. Automatic waits for consent when the WP Consent API plugin is active.',
-								'hubspot-form-block'
-							) }
+							help={
+								__(
+									"Forms load either way. Load on every page leaves consent to HubSpot's own cookie banner, if you have turned it on in HubSpot. Wait for an external consent banner works with consent plugins that support the WP Consent API, and with Google Tag Manager or custom code set up as the plugin's README describes.",
+									'hubspot-form-block'
+								) +
+								( window.hubspotFormBlockEditor?.wpConsentApi &&
+								trackingMode === 'always'
+									? ' ' +
+									  __(
+											'A consent plugin that uses the WP Consent API is active. Choose Wait for an external consent banner so HubSpot waits for it.',
+											'hubspot-form-block'
+									  )
+									: '' )
+							}
 							options={ [
-								{
-									label: __(
-										'Automatic',
-										'hubspot-form-block'
-									),
-									value: 'auto',
-								},
-								{
-									label: __(
-										'Wait for consent',
-										'hubspot-form-block'
-									),
-									value: 'consent',
-								},
 								{
 									label: __(
 										'Load on every page',
@@ -257,7 +253,14 @@ export default function Edit( { attributes, setAttributes, clientId } ) {
 								},
 								{
 									label: __(
-										"Don't load",
+										'Wait for an external consent banner',
+										'hubspot-form-block'
+									),
+									value: 'consent',
+								},
+								{
+									label: __(
+										"Don't load HubSpot tracking",
 										'hubspot-form-block'
 									),
 									value: 'never',

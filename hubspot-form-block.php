@@ -30,35 +30,17 @@ function block_init() {
 add_action( 'init', __NAMESPACE__ . '\\block_init' );
 
 /**
- * Gets the tracking setting after the `hubspot_form_block_tracking_mode`
- * filter: `auto`, `consent`, `always` or `never`. A filter result that is not
- * a string counts as `auto`.
+ * Gets the tracking mode: `always`, `consent` or `never`.
+ *
+ * The saved setting passes through the `hubspot_form_block_tracking_mode`
+ * filter. Unknown values count as `always`.
  *
  * @return string
  */
-function get_tracking_setting() : string {
-	$setting = apply_filters( 'hubspot_form_block_tracking_mode', get_option( 'hubspot_embed_tracking', 'auto' ) );
+function get_tracking_mode() : string {
+	$mode = apply_filters( 'hubspot_form_block_tracking_mode', get_option( 'hubspot_embed_tracking', 'always' ) );
 
-	return is_string( $setting ) ? $setting : 'auto';
-}
-
-/**
- * Resolves a tracking setting to a mode: `consent`, `always` or `never`.
- *
- * `auto` and unknown values load HubSpot only after consent when the WP
- * Consent API is active.
- *
- * @param string|null $setting Tracking setting. Read with get_tracking_setting() when null.
- * @return string
- */
-function get_tracking_mode( $setting = null ) : string {
-	$mode = null === $setting ? get_tracking_setting() : $setting;
-
-	if ( ! in_array( $mode, [ 'consent', 'always', 'never' ], true ) ) {
-		$mode = function_exists( 'wp_has_consent' ) ? 'consent' : 'always';
-	}
-
-	return $mode;
+	return in_array( $mode, [ 'always', 'consent', 'never' ], true ) ? $mode : 'always';
 }
 
 /**
@@ -91,8 +73,7 @@ function get_tracker_url( $portal_id, $region, $business_unit_id = 0 ) : string 
 function enqueue_tracker( string $url, string $handle ) {
 	static $consent_urls = [];
 
-	$setting = get_tracking_setting();
-	$mode    = get_tracking_mode( $setting );
+	$mode = get_tracking_mode();
 
 	if ( 'always' === $mode ) {
 		wp_enqueue_script(
@@ -138,8 +119,6 @@ function enqueue_tracker( string $url, string $handle ) {
 	// times this function is called.
 	$config = [
 		'scripts' => $consent_urls,
-		// Waiting for consent was chosen rather than resolved from `auto`.
-		'strict'  => 'consent' === $setting,
 	];
 
 	wp_scripts()->add_data(
@@ -162,6 +141,19 @@ function enqueue_scripts() {
 }
 
 add_action( 'wp_enqueue_scripts', __NAMESPACE__ . '\\enqueue_scripts' );
+
+/**
+ * Tells the block editor whether the WP Consent API is active.
+ */
+function enqueue_editor_data() {
+	wp_add_inline_script(
+		generate_block_asset_handle( 'hubspot/form', 'editorScript' ),
+		'window.hubspotFormBlockEditor = ' . wp_json_encode( [ 'wpConsentApi' => function_exists( 'wp_has_consent' ) ] ) . ';',
+		'before'
+	);
+}
+
+add_action( 'enqueue_block_editor_assets', __NAMESPACE__ . '\\enqueue_editor_data' );
 
 /**
  * Declares WP Consent API compliance and registers HubSpot's tracker cookies.
@@ -242,18 +234,18 @@ function rest_api() {
 		[
 			'type' => 'string',
 			'sanitize_callback' => function ( $value ) {
-				if ( in_array( $value, [ 'auto', 'consent', 'always', 'never' ], true ) ) {
+				if ( in_array( $value, [ 'always', 'consent', 'never' ], true ) ) {
 					return $value;
 				}
-				return 'auto';
+				return 'always';
 			},
 			'show_in_rest' => [
 				'schema' => [
 					'type' => 'string',
-					'enum' => [ 'auto', 'consent', 'always', 'never' ],
+					'enum' => [ 'always', 'consent', 'never' ],
 				],
 			],
-			'default' => 'auto',
+			'default' => 'always',
 		]
 	);
 }

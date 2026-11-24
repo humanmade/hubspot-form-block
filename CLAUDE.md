@@ -7,7 +7,7 @@ WordPress block plugin that embeds HubSpot Forms v4 directly in page content. Th
 Single block (`hubspot/form`) that:
 - Accepts Portal ID, region, Form ID, redirect URL, submit button text, GTM event name
 - Has a `legacyEmbed` toggle for forms the v4 embed reports as "Form not found", which loads `forms/embed/v2.js` and builds the form with `hbspt.forms.create` instead
-- Has a global `hubspot_embed_tracking` setting (`auto`, `consent`, `always`, `never`) for HubSpot's tracking script (`hs-scripts.com`); `auto` resolves to `consent` when the WP Consent API is active, otherwise `always`. In `consent` mode `src/consent.js` loads the script once a consent source grants it
+- Has a global `hubspot_embed_tracking` setting (`always` default, `consent`, `never`) for HubSpot's tracking script (`hs-scripts.com`). In `consent` mode `src/consent.js` loads the script once the WP Consent API (with a consent type set) or the `window.hubspotFormBlockConsent` queue grants a category. It does not read Google Consent Mode; GTM users push to the queue from Custom HTML tags (see README)
 - Supports optional inner blocks as a success message shown in place of the form after submission
 - Emits a `<template>` element server-side containing the inner-block HTML; clones it on submission success via `view.js`
 
