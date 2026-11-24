@@ -129,10 +129,46 @@ async function mockLegacySubmission( page, formId ) {
 	);
 }
 
+/**
+ * Answers requests for HubSpot's tracking script with a stub, so the real
+ * tracker is never reached.
+ *
+ * @param {import('@playwright/test').Page} page
+ * @return {Promise<string[]>} A list that collects the URL of each request.
+ */
+async function stubTracker( page ) {
+	const requests = [];
+
+	await page.route( /hs-scripts\.com/, ( route ) => {
+		requests.push( route.request().url() );
+		return route.fulfill( {
+			contentType: 'application/javascript',
+			body: 'window.__hsTrackerLoads = ( window.__hsTrackerLoads || 0 ) + 1;',
+		} );
+	} );
+
+	return requests;
+}
+
+/**
+ * Scrolls the page and waits briefly, so a request that is going to happen
+ * has had the chance to.
+ *
+ * @param {import('@playwright/test').Page} page
+ */
+async function settle( page ) {
+	await page.evaluate( () =>
+		window.scrollTo( 0, document.body.scrollHeight )
+	);
+	await page.waitForTimeout( 500 );
+}
+
 module.exports = {
 	editorCanvas,
 	insertBlockAndOpenGlobalSettings,
 	dispatchHubSpotSuccess,
 	presetFormSubmittedFlag,
 	mockLegacySubmission,
+	stubTracker,
+	settle,
 };

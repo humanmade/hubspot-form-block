@@ -6,7 +6,11 @@ const { test, expect } = require( '@wordpress/e2e-test-utils-playwright' );
 /**
  * Internal dependencies
  */
-const { insertBlockAndOpenGlobalSettings } = require( './helpers' );
+const {
+	insertBlockAndOpenGlobalSettings,
+	stubTracker,
+	settle,
+} = require( './helpers' );
 
 const PORTAL_ID = 148262752;
 const FORM_ID = 'ec0707d2-b7f5-47c5-bfef-76eb7e8f837e';
@@ -48,40 +52,6 @@ async function setSettings( requestUtils, data ) {
  */
 function setTracking( requestUtils, mode ) {
 	return setSettings( requestUtils, { hubspot_embed_tracking: mode } );
-}
-
-/**
- * Answers requests for HubSpot's tracking script with a stub, so the real
- * tracker is never reached.
- *
- * @param {import('@playwright/test').Page} page
- * @return {Promise<string[]>} A list that collects the URL of each request.
- */
-async function stubTracker( page ) {
-	const requests = [];
-
-	await page.route( /hs-scripts\.com/, ( route ) => {
-		requests.push( route.request().url() );
-		return route.fulfill( {
-			contentType: 'application/javascript',
-			body: 'window.__hsTrackerLoads = ( window.__hsTrackerLoads || 0 ) + 1;',
-		} );
-	} );
-
-	return requests;
-}
-
-/**
- * Scrolls the page and waits briefly, so a request that is going to happen
- * has had the chance to.
- *
- * @param {import('@playwright/test').Page} page
- */
-async function settle( page ) {
-	await page.evaluate( () =>
-		window.scrollTo( 0, document.body.scrollHeight )
-	);
-	await page.waitForTimeout( 500 );
 }
 
 /**
