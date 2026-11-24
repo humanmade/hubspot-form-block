@@ -6,7 +6,10 @@ const { test, expect } = require( '@wordpress/e2e-test-utils-playwright' );
 /**
  * Internal dependencies
  */
-const { editorCanvas } = require( './helpers' );
+const {
+	editorCanvas,
+	insertBlockAndOpenGlobalSettings,
+} = require( './helpers' );
 
 const PORTAL_ID = 148262752;
 const FORM_ID = 'ec0707d2-b7f5-47c5-bfef-76eb7e8f837e';
@@ -47,40 +50,6 @@ async function setGlobals( requestUtils, data ) {
 		method: 'POST',
 		data,
 	} );
-}
-
-/**
- * Inserts the block and reveals its "Global Settings" panel in the inspector.
- *
- * The panel's initialOpen depends on whether a global Portal ID is set, so it is
- * expanded explicitly rather than assumed.
- *
- * @param {Object} admin      The e2e admin fixture.
- * @param {Object} editor     The e2e editor fixture.
- * @param {Object} page       The Playwright page.
- * @param {Object} attributes Block attributes to insert with.
- */
-async function insertBlockAndOpenGlobalSettings(
-	admin,
-	editor,
-	page,
-	attributes = {}
-) {
-	await admin.createNewPost();
-	await editor.setPreferences( 'core/edit-post', { welcomeGuide: false } );
-	await editor.insertBlock( { name: 'hubspot/form', attributes } );
-	await editor.openDocumentSettingsSidebar();
-
-	const blockTab = page.getByRole( 'tab', { name: 'Block' } );
-	if ( await blockTab.isVisible() ) {
-		await blockTab.click();
-	}
-
-	const panelToggle = page.getByRole( 'button', { name: 'Global Settings' } );
-	await expect( panelToggle ).toBeVisible();
-	if ( ( await panelToggle.getAttribute( 'aria-expanded' ) ) === 'false' ) {
-		await panelToggle.click();
-	}
 }
 
 test.describe( 'HubSpot Form Block global settings', () => {

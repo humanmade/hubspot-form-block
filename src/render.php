@@ -28,23 +28,12 @@ if ( $legacy_embed ) {
 	$embed_src = sprintf( 'https://js-%s.hsforms.net/forms/embed/developer/%s.js', $region, $portal_id );
 }
 
-// If no global portal ID is set, the main plugin won't have enqueued the HubSpot
-// tracking script — enqueue it here using the block-level portal ID as a fallback.
+// If no global portal ID is set, the main plugin won't have loaded the HubSpot
+// tracking script — load it here using the block-level portal ID as a fallback.
 if ( empty( get_option( 'hubspot_embed_portal_id' ) ) ) {
-	$hs_script_url = sprintf( 'https://js-%s.hs-scripts.com/%s.js', $region, $portal_id );
-	if ( ! empty( $business_unit_id ) ) {
-		$hs_script_url = add_query_arg( 'businessUnitId', $business_unit_id, $hs_script_url );
-	}
-
-	wp_enqueue_script(
-		"hs-script-loader-{$portal_id}",
-		$hs_script_url,
-		[],
-		null,
-		[
-			'strategy'  => 'async',
-			'in_footer' => true,
-		]
+	\HM\HubspotFormBlock\enqueue_tracker(
+		\HM\HubspotFormBlock\get_tracker_url( $portal_id, $region, $business_unit_id ),
+		"hs-script-loader-{$portal_id}"
 	);
 }
 

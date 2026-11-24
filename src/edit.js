@@ -107,6 +107,7 @@ export default function Edit( { attributes, setAttributes, clientId } ) {
 		defaultPortalId = '',
 		defaultRegion,
 		defaultBusinessUnitId,
+		trackingMode,
 	} = useSelect( ( select ) => {
 		const settings = select( 'core' ).getSite();
 
@@ -116,6 +117,7 @@ export default function Edit( { attributes, setAttributes, clientId } ) {
 			defaultRegion: settings?.hubspot_embed_region || 'eu1',
 			defaultBusinessUnitId:
 				settings?.hubspot_embed_business_unit_id || '',
+			trackingMode: settings?.hubspot_embed_tracking || 'always',
 		};
 	} );
 
@@ -220,6 +222,55 @@ export default function Edit( { attributes, setAttributes, clientId } ) {
 								'hubspot-form-block'
 							) }
 						</Button>
+					) }
+					{ canSetPortalId && (
+						<SelectControl
+							label={ __(
+								'HubSpot tracking',
+								'hubspot-form-block'
+							) }
+							help={
+								__(
+									"Forms load either way. Load on every page leaves consent to HubSpot's own cookie banner, if you have turned it on in HubSpot. Wait for an external consent banner works with consent plugins that support the WP Consent API, and with Google Tag Manager or custom code set up as the plugin's README describes.",
+									'hubspot-form-block'
+								) +
+								( window.hubspotFormBlockEditor?.wpConsentApi &&
+								trackingMode === 'always'
+									? ' ' +
+									  __(
+											'The WP Consent API plugin is active. If your consent plugin supports it, choose Wait for an external consent banner so HubSpot waits for it.',
+											'hubspot-form-block'
+									  )
+									: '' )
+							}
+							options={ [
+								{
+									label: __(
+										'Load on every page',
+										'hubspot-form-block'
+									),
+									value: 'always',
+								},
+								{
+									label: __(
+										'Wait for an external consent banner',
+										'hubspot-form-block'
+									),
+									value: 'consent',
+								},
+								{
+									label: __(
+										"Don't load HubSpot tracking",
+										'hubspot-form-block'
+									),
+									value: 'never',
+								},
+							] }
+							value={ trackingMode }
+							onChange={ ( value ) =>
+								saveSite( { hubspot_embed_tracking: value } )
+							}
+						/>
 					) }
 				</PanelBody>
 				<PanelBody

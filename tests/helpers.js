@@ -1,3 +1,5 @@
+const { expect } = require( '@wordpress/e2e-test-utils-playwright' );
+
 /**
  * Returns a locator scoped to the block editor canvas iframe, which
  * WordPress uses to isolate block content from the surrounding admin UI.
@@ -7,6 +9,47 @@
  */
 function editorCanvas( page ) {
 	return page.locator( 'iframe[name="editor-canvas"]' ).contentFrame();
+}
+
+/**
+ * Creates a post with a selected HubSpot Form block and opens Global Settings.
+ *
+ * @param {Object} admin      The e2e admin fixture.
+ * @param {Object} editor     The e2e editor fixture.
+ * @param {Object} page       The Playwright page.
+ * @param {Object} attributes Block attributes to insert with.
+ */
+async function insertBlockAndOpenGlobalSettings(
+	admin,
+	editor,
+	page,
+	attributes = {}
+) {
+	// The welcome guide can open after the preference below is set.
+	await page.addLocatorHandler(
+		page.getByRole( 'dialog', { name: /welcome/i } ),
+		( dialog ) => dialog.getByRole( 'button', { name: 'Close' } ).click()
+	);
+	await admin.createNewPost();
+	await editor.setPreferences( 'core/edit-post', { welcomeGuide: false } );
+	await editor.insertBlock( { name: 'hubspot/form', attributes } );
+	await editorCanvas( page )
+		.getByRole( 'document', { name: 'Block: Hubspot Form' } )
+		.getByRole( 'heading', { name: 'Hubspot Form', exact: true } )
+		.click();
+	await editor.openDocumentSettingsSidebar();
+
+	const sidebar = page.getByRole( 'region', { name: 'Editor settings' } );
+	await sidebar.getByRole( 'tab', { name: 'Block', exact: true } ).click();
+
+	const panelToggle = sidebar.getByRole( 'button', {
+		name: 'Global Settings',
+		exact: true,
+	} );
+	await expect( panelToggle ).toBeVisible();
+	if ( ( await panelToggle.getAttribute( 'aria-expanded' ) ) === 'false' ) {
+		await panelToggle.click();
+	}
 }
 
 /**
@@ -91,9 +134,46 @@ async function mockLegacySubmission( page, formId ) {
 	);
 }
 
+/**
+ * Answers requests for HubSpot's tracking script with a stub, so the real
+ * tracker is never reached.
+ *
+ * @param {import('@playwright/test').Page} page
+ * @return {Promise<string[]>} A list that collects the URL of each request.
+ */
+async function stubTracker( page ) {
+	const requests = [];
+
+	await page.route( /hs-scripts\.com/, ( route ) => {
+		requests.push( route.request().url() );
+		return route.fulfill( {
+			contentType: 'application/javascript',
+			body: 'window.__hsTrackerLoads = ( window.__hsTrackerLoads || 0 ) + 1;',
+		} );
+	} );
+
+	return requests;
+}
+
+/**
+ * Scrolls the page and waits briefly, so a request that is going to happen
+ * has had the chance to.
+ *
+ * @param {import('@playwright/test').Page} page
+ */
+async function settle( page ) {
+	await page.evaluate( () =>
+		window.scrollTo( 0, document.body.scrollHeight )
+	);
+	await page.waitForTimeout( 500 );
+}
+
 module.exports = {
 	editorCanvas,
+	insertBlockAndOpenGlobalSettings,
 	dispatchHubSpotSuccess,
 	presetFormSubmittedFlag,
 	mockLegacySubmission,
+	stubTracker,
+	settle,
 };

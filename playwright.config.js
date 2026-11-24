@@ -3,6 +3,7 @@
  */
 const config = {
 	testDir: './tests',
+	globalSetup: require.resolve( './tests/global-setup' ),
 	fullyParallel: true,
 	forbidOnly: !! process.env.CI,
 	retries: process.env.CI ? 2 : 0,
@@ -15,6 +16,7 @@ const config = {
 	use: {
 		baseURL: process.env.WP_BASE_URL || 'http://127.0.0.1:9400',
 		trace: 'on-first-retry',
+		storageState: 'test-results/.auth/admin.json',
 	},
 	projects: [
 		{

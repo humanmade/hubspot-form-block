@@ -7,6 +7,7 @@ WordPress block plugin that embeds HubSpot Forms v4 directly in page content. Th
 Single block (`hubspot/form`) that:
 - Accepts Portal ID, region, Form ID, redirect URL, submit button text, GTM event name
 - Has a `legacyEmbed` toggle for forms the v4 embed reports as "Form not found", which loads `forms/embed/v2.js` and builds the form with `hbspt.forms.create` instead
+- Has a global `hubspot_embed_tracking` setting (`always` default, `consent`, `never`) for HubSpot's tracking script (`hs-scripts.com`). In `consent` mode `src/consent.js` loads the script once the WP Consent API (with a consent type set) or the `window.hubspotFormBlockConsent` queue grants a category. It does not read Google Consent Mode; GTM users push to the queue from Custom HTML tags (see README)
 - Supports optional inner blocks as a success message shown in place of the form after submission
 - Emits a `<template>` element server-side containing the inner-block HTML; clones it on submission success via `view.js`
 
@@ -67,6 +68,7 @@ The `--webpack-copy-php` flag on `build`/`start` is required — it copies `rend
 
 - The legacy embed (`legacyEmbed`) renders `<input type="submit">`, the v4 embed renders a `<button>`. A custom submit label has to go on `value` for one and `textContent` for the other, which `setSubmitText` in `view.js` handles.
 - Legacy forms are created from `view.js` rather than found by HubSpot's loader, so their container gets the class `hs-form-legacy` instead of `hs-form-html`. Test locators keyed on `.hs-form-html` will not match them.
+- Tests answer `hs-scripts.com` with a stub (`page.route`), so the real tracker is never requested, and they run against Playground with `WP_BASE_URL=http://127.0.0.1:9400` so `requestUtils` reaches it.
 - The HubSpot form renders **inline, not in an iframe** — it injects DOM directly into `<div id="{target}">`. Allow time for `hs-form-event:on-ready` before asserting form elements exist.
 - `--webpack-copy-php` is required in `build`/`start` scripts so `render.php` is included in `build/`. Do not remove it.
 - Block attributes are in `src/block.json`. The `inlineMessage` attribute in `block.json` is legacy (kept for backward-compat migration) — the live success-message mechanism now uses the `<template>` approach, not the `inlineMessage` string.
